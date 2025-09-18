@@ -40,7 +40,7 @@
       <div><b>주문목록</b></div>
       <button class="btn" id="exportOrders">엑셀 다운로드</button>
     </div>
-    <table id="ordersTbl"><thead><tr><th>시간</th><th>테이블</th><th>항목</th><th>금액</th><th>상태</th><th>동작</th></tr></thead><tbody></tbody></table>
+    <table id="ordersTbl"><thead><tr><th>시간</th><th>테이블</th><th>항목</th><th>금액</th><th>상태</th></tr></thead><tbody></tbody></table>
   </div>
 
   <div id="pane-qr" class="card hidden">
@@ -181,74 +181,4 @@ copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.
 
 init();
 </script>
-
-<script>
-// ===== Refund override (no template literals) =====
-(function(){
-  if (!window.ordersTbody) return;
-  // simple helper to fetch menu once and cache
-  var __menu = null;
-  function getMenu(){
-    if (__menu) return Promise.resolve(__menu);
-    return fetch(api('/menu'), { headers: authHeaders() })
-      .then(function(r){ return r.ok ? r.json() : []; })
-      .then(function(j){ __menu = j || []; return __menu; })
-      .catch(function(){ return []; });
-  }
-  function nameOf(id, menu){
-    for (var i=0;i<menu.length;i++){ var m=menu[i]; if (String(m.id)===String(id)) return (m.name||m.title||id); }
-    return id;
-  }
-  var __origLoad = window.loadOrders;
-  window.loadOrders = function(){
-    return Promise.all([
-      fetch(api('/orders')).then(function(r){ return r.json(); }),
-      getMenu()
-    ]).then(function(arr){
-      var orders = arr[0] || [];
-      var menu = arr[1] || [];
-      var html = '';
-      for (var i=0;i<orders.length;i++){
-        var o = orders[i];
-        var itemsArr = o.items || [];
-        var itemsStr = '';
-        for (var j=0;j<itemsArr.length;j++){
-          var pair = itemsArr[j];
-          var mid = pair[0]; var qty = pair[1];
-          itemsStr += (j? ', ' : '') + nameOf(mid, menu) + ' × ' + qty;
-        }
-        var time = new Date(o.createdAt||o.ts||Date.now()).toLocaleString('ko-KR');
-        var amt = (o.amount||0).toLocaleString('ko-KR');
-        var idAttr = (o.id!=null ? ' data-id="'+o.id+'"' : '');
-        var disabled = (o.status==='환불' ? 'disabled' : '');
-        var btn = '<button class="btn btn-refund" '+disabled+' data-id="'+(o.id||'')+'">환불</button>';
-        html += '<tr'+idAttr+'><td>'+time+'</td><td>'+(o.tableNo||'')+'</td><td>'+itemsStr+'</td><td>'+amt+'</td><td>'+(o.status||'')+'</td><td>'+btn+'</td></tr>';
-      }
-      ordersTbody.innerHTML = html;
-    }).catch(function(){
-      if (typeof __origLoad === 'function') try { return __origLoad(); } catch(e){}
-    });
-  };
-
-  // Refund click handler
-  ordersTbody.addEventListener('click', function(e){
-    var t = e.target || e.srcElement;
-    while (t && t !== this && (!t.classList || !t.classList.contains('btn-refund'))) {
-      t = t.parentNode;
-    }
-    if (!t || !t.classList || !t.classList.contains('btn-refund')) return;
-    if (!window.TOKEN){ location.href='/login'; return; }
-    var id = t.getAttribute('data-id'); if (!id){ alert('주문 ID 없음'); return; }
-    t.disabled = true;
-    fetch(api('/orders/'+encodeURIComponent(id)+'/refund'), { method:'POST', headers: authHeaders() })
-      .then(function(r){
-        if (!r.ok) return r.text().then(function(tt){ throw new Error(tt||'환불 실패'); });
-      })
-      .then(function(){ return window.loadOrders(); })
-      .catch(function(err){ alert(err.message || '환불 실패'); })
-      .finally(function(){ t.disabled=false; });
-  });
-})();
-</script>
-
 </body></html>
