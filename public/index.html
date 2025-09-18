@@ -40,7 +40,7 @@
       <div><b>주문목록</b></div>
       <button class="btn" id="exportOrders">엑셀 다운로드</button>
     </div>
-    <table id="ordersTbl"><thead><tr><th>시간</th><th>테이블</th><th>항목</th><th>금액</th><th>상태</th></tr></thead><tbody></tbody></table>
+    <table id="ordersTbl"><thead><tr><th>시간</th><th>테이블</th><th>항목</th><th>금액</th><th>상태</th><th>동작</th></tr></thead><tbody></tbody></table>
   </div>
 
   <div id="pane-qr" class="card hidden">
@@ -93,8 +93,28 @@ async function init(){
 
 // Orders
 const ordersTbody = document.querySelector('#ordersTbl tbody');
-function rowHtml(o){ const items=(o.items||[]).map(([id,q])=>`${id} x ${q}`).join(', '); return `<tr><td>${o.createdAt||''}</td><td>${o.tableNo||''}</td><td>${items}</td><td>${(o.amount||0).toLocaleString('ko-KR')}</td><td>${o.status||''}</td></tr>`; }
+function rowHtml(o){
+  const items=(o.items||[]).map(([id,q])=>`${nameOf(id)} × ${q}`).join(', ');
+  const time = new Date(o.createdAt||o.ts||Date.now()).toLocaleString('ko-KR');
+  const amt = (o.amount||0).toLocaleString('ko-KR');
+  const idAttr = (o.id!=null?` data-id="${o.id}"`:''); 
+  const btn = `<button class="btn btn-refund" ${o.status==='환불'?'disabled':''} data-id="${o.id||''}">환불</button>`;
+  return `<tr${idAttr}><td>${time}</td><td>${o.tableNo||''}</td><td>${items}</td><td>${amt}</td><td>${o.status||''}</td><td>${btn}</td></tr>`;
+} x ${q}`).join(', '); return `<tr><td>${o.createdAt||''}</td><td>${o.tableNo||''}</td><td>${items}</td><td>${(o.amount||0).toLocaleString('ko-KR')}</td><td>${o.status||''}</td></tr>`; }
 async function loadOrders(){ const r=await fetch(api('/orders')); if(!r.ok) return; const arr=await r.json(); ordersTbody.innerHTML=arr.map(rowHtml).join(''); }
+// Refund click handler (admin)
+ordersTbody.addEventListener('click', async (e)=>{
+  const b = e.target.closest('.btn-refund'); if(!b) return;
+  if (!window.TOKEN){ location.href='/login'; return; }
+  const id = b.getAttribute('data-id'); if(!id) { alert('주문 ID 없음'); return; }
+  b.disabled = true;
+  try{
+    const r = await fetch(api('/orders/'+encodeURIComponent(id)+'/refund'), { method:'POST', headers: authHeaders() });
+    if (!r.ok) { const t=await r.text().catch(()=> '환불 실패'); alert(t||'환불 실패'); }
+    await loadOrders();
+  }catch(_){ alert('환불 실패'); } finally { b.disabled=false; }
+});
+
 (function sse(){ try{ const es=new EventSource(api('/events/orders')); es.addEventListener('order', e=>{ loadOrders(); }); }catch(_){ /* fallback by timer, but silent */ setInterval(loadOrders,15000); } })();
 document.getElementById('exportOrders').onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } window.location.href = api('/export/orders.xlsx')+'?token='+TOKEN; };
 
