@@ -1,13 +1,9 @@
 {
   "cleanUrls": true,
-  "rewrites": [
+  "routes": [
     {
-      "source": "/admin-config",
-      "destination": "/api/admin-config"
-    },
-    {
-      "source": "/events/orders",
-      "destination": "/api/events-orders"
+      "src": "/api/login-proxy",
+      "dest": "/api/login-proxy.js"
     }
   ]
 }
