@@ -1,0 +1,9 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/admin-config",
+      "destination": "/api/admin-config"
+    }
+  ]
+}
