@@ -1,9 +1,0 @@
-{
-  "cleanUrls": true,
-  "rewrites": [
-    {
-      "source": "/p/:path*",
-      "destination": "https://qr-order-nr-vercel-v1-seven.vercel.app/:path*"
-    }
-  ]
-}
