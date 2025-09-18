@@ -1,9 +1,9 @@
 {
   "cleanUrls": true,
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/login-proxy",
-      "dest": "/api/login-proxy.js"
+      "source": "/p/:path*",
+      "destination": "https://qr-order-nr-vercel-v1-seven.vercel.app/:path*"
     }
   ]
 }
