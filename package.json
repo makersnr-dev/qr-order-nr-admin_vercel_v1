@@ -1,0 +1,13 @@
+{
+  "name": "qrorder-admin-full",
+  "version": "1.5.8",
+  "type": "module",
+  "main": "admin_server.js",
+  "scripts": {
+    "start": "node admin_server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5"
+  }
+}
