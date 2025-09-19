@@ -53,6 +53,36 @@
         forceDownload(url, fname);
         return false;
       }, {passive:false});
+    // also intercept anchor around the preview (#dlPng) so that clicking doesn't navigate
+    const aDl = document.getElementById('dlPng');
+    if (aDl && !aDl.dataset.bound) {
+      aDl.dataset.bound = '1';
+      aDl.addEventListener('click', (e)=>{
+        stopAll(e);
+        const url = aDl.href || '';
+        const fname = `qr${getTable()}_${today()}.png`;
+        forceDownload(url, fname);
+        return false;
+      }, {passive:false});
+    }
+
+    // defensive: block any <a> whose href includes '/qr?' inside the QR pane
+    const qrPane = document.querySelector('#pane-qr, .qr-pane, [data-pane="pane-qr"]') || document;
+    if (qrPane && !qrPane.dataset.boundQrLinks) {
+      qrPane.dataset.boundQrLinks = '1';
+      qrPane.addEventListener('click', (e)=>{
+        const a = e.target && e.target.closest && e.target.closest('a[href]');
+        if (!a) return;
+        const href = a.getAttribute('href') || '';
+        if (href.includes('/qr?')) {
+          stopAll(e);
+          const fname = `qr${getTable()}_${today()}.png`;
+          forceDownload(a.href, fname);
+          return false;
+        }
+      }, {passive:false});
+    }
+
     }
     const grid=document.getElementById('qrxSaved');
     if(grid){
