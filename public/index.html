@@ -18,6 +18,8 @@
   .pill.warn{background:#2a160b;border-color:#4e331f;color:#ffd9b3}
   .muted{color:var(--muted)} .hidden{display:none}
 </style>
+
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24" fill="#3aa3ff"/></svg>">
 </head><body>
 <div class="wrap">
   <div class="row" style="justify-content:space-between">
@@ -153,7 +155,7 @@ document.getElementById('saveQR')?.addEventListener('click',()=>{
 });
 // render on load
 renderSaved();
-it/save/delete/add)
+// Menu (save/delete/add)
 const menuTbody = document.querySelector('#menuTbl tbody');
 async function loadMenu(){ const r=await fetch(api('/menu')); if(!r.ok) return; const arr=await r.json(); menuTbody.innerHTML = arr.map(trHtml).join(''); }
 function trHtml(m){
