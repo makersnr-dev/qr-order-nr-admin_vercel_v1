@@ -255,7 +255,11 @@ copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login.html'; return; } navig
 })();
 window.setAuthUI && window.setAuthUI();
   init();
-  window.addEventListener('storage', (e)=>{ if(e.key==='adminToken'){ TOKEN=localStorage.getItem('adminToken')||''; window.setAuthUI && window.setAuthUI(); } });
+  
+  window.addEventListener('storage', (e)=>{
+    try{ if(e && e.key==='adminToken') window.setAuthUI && window.setAuthUI(); }catch(_){ }
+  });
+
 </script>
 
 <script>
