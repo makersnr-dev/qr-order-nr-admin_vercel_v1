@@ -252,8 +252,9 @@ copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.
   // initial
   render();
 })();
-setAuthUI();
+window.setAuthUI && window.setAuthUI();
   init();
-  window.addEventListener('storage', (e)=>{ if(e.key==='adminToken'){ TOKEN=localStorage.getItem('adminToken')||''; setAuthUI(); } });
+  window.addEventListener('storage', (e)=>{ if(e.key==='adminToken'){ TOKEN=localStorage.getItem('adminToken')||''; window.setAuthUI && window.setAuthUI(); } });
 </script>
+<script src="/admin-auth-toggle-fix.js"></script>
 </body></html>
