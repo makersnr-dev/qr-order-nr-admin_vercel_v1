@@ -5,6 +5,62 @@
  * 3) 교차 출처 이미지는 /api/download-proxy 로 프록시 후 저장
  */
 (function(){
+  // ---- Global guard: block any QR-page openings programmatically (window.open) ----
+  (function patchWindowOpen(){
+    const orig = window.open;
+    if (!orig || orig.__qrPatched) return;
+    function guessTableFromQR(url){
+      try{
+        const u = new URL(url, location.origin);
+        const data = u.searchParams.get('data');
+        if (data) {
+          const du = new URL(decodeURIComponent(data));
+          return du.searchParams.get('table') || '';
+        }
+      }catch(e){}
+      return '';
+    }
+    window.open = function(url, ...rest){
+      try{
+        if (typeof url === 'string' && url.includes('/qr?')){
+          const t = guessTableFromQR(url) || getTable();
+          const fname = `qr${t}_${today()}.png`;
+          forceDownload(url, fname);
+          return null;
+        }
+      }catch(e){}
+      return orig.apply(this, [url, ...rest]);
+    };
+    window.open.__qrPatched = true;
+  })();
+
+  // ---- Capture-phase click guard anywhere in the doc for links to /qr? ----
+  (function bindGlobalQrLinkInterceptor(){
+    if (document.__qrLinkGuard) return;
+    document.__qrLinkGuard = true;
+    document.addEventListener('click', function(e){
+      try{
+        const a = e.target && e.target.closest && e.target.closest('a[href]');
+        if (!a) return;
+        const href = a.getAttribute('href') || '';
+        if (href.includes('/qr?') || (a.href && a.href.includes('/qr?'))){
+          stopAll(e);
+          const tMatch = href.match(/[?&]data=([^&]+)/);
+          let t = '';
+          if (tMatch){
+            try{
+              const du = new URL(decodeURIComponent(tMatch[1]));
+              t = du.searchParams.get('table') || '';
+            }catch(_){}
+          }
+          const fname = `qr${t || getTable()}_${today()}.png`;
+          forceDownload(a.href || href, fname);
+          return false;
+        }
+      }catch(_){}
+    }, {capture:true, passive:false});
+  })();
+
   function pad2(n){return String(n).padStart(2,'0');}
   function today(){const d=new Date();return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;}
   function getTable(){
@@ -53,6 +109,36 @@
         forceDownload(url, fname);
         return false;
       }, {passive:false});
+    // also intercept anchor around the preview (#dlPng) so that clicking doesn't navigate
+    const aDl = document.getElementById('dlPng');
+    if (aDl && !aDl.dataset.bound) {
+      aDl.dataset.bound = '1';
+      aDl.addEventListener('click', (e)=>{
+        stopAll(e);
+        const url = aDl.href || '';
+        const fname = `qr${getTable()}_${today()}.png`;
+        forceDownload(url, fname);
+        return false;
+      }, {passive:false});
+    }
+
+    // defensive: block any <a> whose href includes '/qr?' inside the QR pane
+    const qrPane = document.querySelector('#pane-qr, .qr-pane, [data-pane="pane-qr"]') || document;
+    if (qrPane && !qrPane.dataset.boundQrLinks) {
+      qrPane.dataset.boundQrLinks = '1';
+      qrPane.addEventListener('click', (e)=>{
+        const a = e.target && e.target.closest && e.target.closest('a[href]');
+        if (!a) return;
+        const href = a.getAttribute('href') || '';
+        if (href.includes('/qr?')) {
+          stopAll(e);
+          const fname = `qr${getTable()}_${today()}.png`;
+          forceDownload(a.href, fname);
+          return false;
+        }
+      }, {passive:false});
+    }
+
     }
     const grid=document.getElementById('qrxSaved');
     if(grid){
@@ -96,7 +182,7 @@
     if(lo && !lo.dataset.bound){
       lo.dataset.bound='1';
       lo.addEventListener('click', ()=>{ try{localStorage.removeItem('adminToken');}catch(_){}
-        setAuthUI(); try{location.href='/login';}catch(_){}
+        setAuthUI(); try{location.href='/login.html';}catch(_){}
       });
     }
     window.addEventListener('storage', (e)=>{ if(e && e.key==='adminToken') setAuthUI(); });
