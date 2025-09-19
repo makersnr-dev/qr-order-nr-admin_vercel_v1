@@ -5,6 +5,60 @@
  * 3) 교차 출처 이미지는 /api/download-proxy 로 프록시 후 저장
  */
 (function(){
+  // --- auth guard css once ---
+  (function ensureAuthGuardCSS(){
+    if (document.querySelector('style[data-auth-guard]')) return;
+    const s=document.createElement('style');
+    s.setAttribute('data-auth-guard','1');
+    s.textContent = `
+    .auth-guarded{position:relative; filter: blur(2px); pointer-events:none; user-select:none;}
+    .auth-mask{
+      position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+      background:rgba(7,10,14,0.65); color:#cbd5e1; font:600 14px/1.4 system-ui, -apple-system, "Noto Sans KR", sans-serif;
+      border:1px dashed rgba(148,163,184,0.35); border-radius:12px; pointer-events:auto;
+    }
+    .auth-mask span{background:rgba(15,23,42,0.8); padding:10px 14px; border-radius:10px; border:1px solid rgba(148,163,184,0.25)}
+    .auth-hidden{display:none !important;}
+    `;
+    document.head.appendChild(s);
+  })();
+
+  function isAuthed(){ try { return !!(localStorage.getItem('adminToken')||'').trim(); } catch(_) { return false; } }
+
+  function guardPaneById(id){
+    const el = document.getElementById(id);
+    if(!el) return;
+    const authed = isAuthed();
+
+    // find or create mask
+    let mask = el.querySelector(':scope > .auth-mask');
+    if(!mask){
+      mask = document.createElement('div');
+      mask.className = 'auth-mask auth-hidden';
+      const msg = document.createElement('span');
+      msg.textContent = '로그인 후 이용 가능합니다';
+      mask.appendChild(msg);
+      el.appendChild(mask);
+    }
+
+    if(!authed){
+      el.classList.add('auth-guarded');
+      mask.classList.remove('auth-hidden');
+      // disable form controls inside
+      el.querySelectorAll('button, input, select, textarea, a').forEach(n=>{ n.setAttribute('tabindex','-1'); });
+    }else{
+      el.classList.remove('auth-guarded');
+      mask.classList.add('auth-hidden');
+      el.querySelectorAll('button, input, select, textarea, a').forEach(n=>{ n.removeAttribute('tabindex'); });
+    }
+  }
+
+  function applyAuthGuards(){
+    ensureAuthGuardCSS && ensureAuthGuardCSS();
+    const ids = ['pane-orders','pane-qr','pane-menu','pane-pay','pane-daily','pane-code'];
+    ids.forEach(guardPaneById);
+  }
+
   // ---- Anchor #dlPng hardening: keep real URL in data-url and neutralize href to avoid navigation ----
   (function hardenDlAnchor(){
     const a = document.getElementById('dlPng');
@@ -236,6 +290,8 @@
 
   function getToken(){ try{return localStorage.getItem('adminToken')||'';}catch(_){return '';} }
   function setAuthUI(){
+    try{ applyAuthGuards(); }catch(_){}
+
     const loginBtn=document.getElementById('btnLogin');
     const logoutBtn=document.getElementById('btnLogout');
     const logged=!!getToken();
@@ -246,15 +302,15 @@
     ensureHiddenCSS();
     document.getElementById('btnLogin')?.classList.add('hidden');
     document.getElementById('btnLogout')?.classList.add('hidden');
-    window.setAuthUI=setAuthUI; setAuthUI();
+    window.setAuthUI=setAuthUI; setAuthUI(); try{applyAuthGuards();}catch(_){ }
     const lo=document.getElementById('btnLogout');
     if(lo && !lo.dataset.bound){
       lo.dataset.bound='1';
       lo.addEventListener('click', ()=>{ try{localStorage.removeItem('adminToken');}catch(_){}
-        setAuthUI(); try{location.href='/login.html';}catch(_){}
+        setAuthUI(); try{applyAuthGuards();}catch(_){ } try{location.href='/login.html';}catch(_){}
       });
     }
-    window.addEventListener('storage', (e)=>{ if(e && e.key==='adminToken') setAuthUI(); });
+    window.addEventListener('storage', (e)=>{ if(e && e.key==='adminToken') setAuthUI(); try{applyAuthGuards();}catch(_){ } });
   }
 
   if(document.readyState==='loading'){
