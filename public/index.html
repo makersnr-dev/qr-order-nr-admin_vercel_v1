@@ -96,7 +96,7 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=> setTabActive(t.data
 document.getElementById('logoutBtn').onclick = ()=>{ localStorage.removeItem('adminToken'); TOKEN=''; location.href='/login.html'; };
 
 async function init(){
-  const r=await fetch('/admin-config'); const j=await r.json(); API=j.apiBase; ORDER_BASE=j.orderBase;
+  const r=await fetch('/api/admin-config'); const j=await r.json(); API=j.apiBase; ORDER_BASE=j.orderBase;
   if(!TOKEN){ /* not logged in: don't alert/pop; keep UI idle */ return; }
   // After login only: load data. Failures are shown minimally or silently.
   try{ await Promise.all([loadOrders(), loadMenu(), loadDailyCode()]); }catch(e){ console.warn('initial load error', e); }

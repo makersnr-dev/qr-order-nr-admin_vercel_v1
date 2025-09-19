@@ -8,6 +8,10 @@
     {
       "src": "^/login$",
       "dest": "/login.html"
+    },
+    {
+      "src": "^/admin-config$",
+      "dest": "/api/admin-config.js"
     }
   ]
 }
