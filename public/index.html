@@ -16,7 +16,7 @@
   .pill{display:inline-block;padding:4px 8px;border-radius:24px;border:1px solid #345;font-size:12px}
   .pill.ok{background:#0b2a18;border-color:#1f4e32;color:#b3ffcf}
   .pill.warn{background:#2a160b;border-color:#4e331f;color:#ffd9b3}
-  .muted{color:var(--muted)} .hidden{display:none}
+  .muted{color:var(--muted)} .hidden{display:none !important}
 
   /* --- QRX (non-invasive) --- */
   .qrxGrid{display:grid;grid-template-columns:repeat(1,minmax(160px,1fr));gap:12px;width:100%}
@@ -252,6 +252,8 @@ copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.
   // initial
   render();
 })();
-init();
+setAuthUI();
+  init();
+  window.addEventListener('storage', (e)=>{ if(e.key==='adminToken'){ TOKEN=localStorage.getItem('adminToken')||''; setAuthUI(); } });
 </script>
 </body></html>
