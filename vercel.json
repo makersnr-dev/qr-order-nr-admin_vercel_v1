@@ -1,13 +1,9 @@
 {
-  "cleanUrls": true,
-  "rewrites": [
+  "version": 2,
+  "routes": [
     {
-      "source": "/admin-config",
-      "destination": "/api/admin-config"
-    },
-    {
-      "source": "/events/orders",
-      "destination": "/api/events-orders"
+      "src": "/api/download-proxy",
+      "dest": "/api/download-proxy.js"
     }
   ]
 }
