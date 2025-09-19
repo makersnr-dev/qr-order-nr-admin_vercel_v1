@@ -5,6 +5,43 @@
  * 3) 교차 출처 이미지는 /api/download-proxy 로 프록시 후 저장
  */
 (function(){
+  // ---- Anchor #dlPng hardening: keep real URL in data-url and neutralize href to avoid navigation ----
+  (function hardenDlAnchor(){
+    const a = document.getElementById('dlPng');
+    if(!a) return;
+    function neutralize(url){
+      if(!url) return;
+      a.dataset.url = url;
+      a.setAttribute('href', '#');
+      a.removeAttribute('target');
+      a.setAttribute('rel', 'noopener');
+    }
+    // initial
+    const href0 = a.getAttribute('href') || '';
+    if(href0.includes('/qr?')) neutralize(href0);
+    // on attribute changes
+    const mo = new MutationObserver((muts)=>{
+      muts.forEach(m=>{
+        if(m.attributeName==='href'){
+          const href = a.getAttribute('href') || '';
+          if(href.includes('/qr?')) neutralize(href);
+        }
+      });
+    });
+    try{ mo.observe(a, {attributes:true, attributeFilter:['href']}); }catch(_){}
+    // click handler
+    if(!a.dataset.boundHarden){
+      a.dataset.boundHarden='1';
+      a.addEventListener('click', (e)=>{
+        stopAll(e);
+        const url = a.dataset.url || '';
+        const fname = `qr${getTable()}_${today()}.png`;
+        forceDownload(url, fname);
+        return false;
+      }, {passive:false});
+    }
+  })();
+
   // ---- Global guard: block any QR-page openings programmatically (window.open) ----
   (function patchWindowOpen(){
     const orig = window.open;
@@ -84,6 +121,14 @@
   async function dataUrlToBlob(dataUrl){const r=await fetch(dataUrl);return await r.blob();}
 
   async function forceDownload(url, filename){
+    // ---- Single-download throttle to avoid Chrome "multiple downloads" prompt ----
+    try {
+      const now = Date.now();
+      if (!window.__qrDlGateTs) window.__qrDlGateTs = 0;
+      if (now - window.__qrDlGateTs < 1200) { return; }
+      window.__qrDlGateTs = now;
+    } catch(_) {}
+
     try{
       if(!url) return;
       if(url.startsWith('data:')){ const b=await dataUrlToBlob(url); return downloadBlob(b, filename); }
