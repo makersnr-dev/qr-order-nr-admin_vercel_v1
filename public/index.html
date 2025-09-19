@@ -203,7 +203,7 @@ copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.
     const arr=read().slice().sort((a,b)=>Number(a.table)-Number(b.table));
     box.innerHTML = arr.map(it=>{
       const dateStr = fmtDate(it.savedAt || Date.now());
-      const fname = `qr-${it.table}_${dateStr}.png`;
+      const fname = `qr${it.table}_${dateStr}.png`;
       return `<div class="qrxCard">
         <a href="${it.img}" download="${fname}" data-filename="${fname}" title="PNG 다운로드">
           <img src="${it.img}" alt="table ${it.table} QR">
@@ -231,7 +231,7 @@ copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.
   document.getElementById('qrImg')?.addEventListener('click',()=>{
     const src=document.getElementById('dlPng')?.href || document.getElementById('qrImg')?.src;
     const t=(document.getElementById('qrTable')?.value||'qr').trim();
-    if(src) trigger(src, `qr-${t||'qr'}_${fmtDate(Date.now())}.png`);
+    if(src) trigger(src, `qr${t||'qr'}_${fmtDate(Date.now())}.png`);
   });
   function trigger(url, filename){
     try{
