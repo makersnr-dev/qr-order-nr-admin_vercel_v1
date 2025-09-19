@@ -28,7 +28,7 @@ async function init(){ const r=await fetch('/admin-config'); const j=await r.jso
 document.getElementById('loginBtn').onclick = async ()=>{
   try{
     const pw=document.getElementById('password').value||'';
-    const r=await fetch('/p/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    const r=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
     if(!r.ok){ document.getElementById('msg').textContent='로그인 실패'; return; }
     const j=await r.json(); localStorage.setItem('adminToken', j.token);
     location.href='/';
