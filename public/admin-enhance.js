@@ -143,6 +143,30 @@
     }catch(e){ console.warn('[QR download] failed:', e); }
   }
 
+/* ---- Single-flight wrapper to dedupe downloads ---- */
+(function reinforceForceDownloadDedup(){
+  try{
+    if (typeof forceDownload !== 'function' || forceDownload.__dedupWrapped) return;
+    const __qrOrigFD = forceDownload;
+    let __qrBusy = false;
+    let __qrLast = 0;
+    forceDownload = async function(url, filename){
+      const now = Date.now();
+      if (__qrBusy || (now - __qrLast) < 800) return;
+      __qrBusy = true;
+      try{
+        await __qrOrigFD(url, filename);
+      } finally {
+        __qrBusy = false;
+        __qrLast = Date.now();
+      }
+    };
+    forceDownload.__dedupWrapped = true;
+  }catch(_){}
+})();
+
+
+
   function bindQrStrict(){
     const img=document.getElementById('qrImg');
     if(img){
