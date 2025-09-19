@@ -96,7 +96,7 @@
     if(lo && !lo.dataset.bound){
       lo.dataset.bound='1';
       lo.addEventListener('click', ()=>{ try{localStorage.removeItem('adminToken');}catch(_){}
-        setAuthUI(); try{location.href='/login';}catch(_){}
+        setAuthUI(); try{location.href='/login.html';}catch(_){}
       });
     }
     window.addEventListener('storage', (e)=>{ if(e && e.key==='adminToken') setAuthUI(); });

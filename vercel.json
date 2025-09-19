@@ -4,6 +4,10 @@
     {
       "src": "/api/download-proxy",
       "dest": "/api/download-proxy.js"
+    },
+    {
+      "src": "^/login$",
+      "dest": "/login.html"
     }
   ]
 }
