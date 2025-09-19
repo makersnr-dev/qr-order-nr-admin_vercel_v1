@@ -27,5 +27,10 @@
       "source": "/daily-code",
       "destination": "/api/daily-code"
     }
-  ]
+  ],
+  "functions": {
+    "api/*.js": {
+      "runtime": "nodejs20.x"
+    }
+  }
 }
