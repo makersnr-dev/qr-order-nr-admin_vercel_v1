@@ -75,7 +75,7 @@
       <input id="dcCode" style="width:140px" readonly>
       <button class="btn" id="copyBtn">복사</button>
       <button class="btn" id="regenBtn">새 코드 발급</button>
-      <button class="btn" id="clearBtn">기본 코드로 되돌리기</button>
+      <!-- 기본 코드로 되돌리기 버튼 제거 -->
     </div>
   </div>
 </div>
@@ -98,7 +98,8 @@ document.getElementById('logoutBtn').onclick = ()=>{ localStorage.removeItem('ad
 async function init(){
   const r=await fetch('/api/admin-config'); const j=await r.json(); API=j.apiBase; ORDER_BASE=j.orderBase;
   if(!TOKEN){ /* not logged in: don't alert/pop; keep UI idle */ return; }
-  // After login only: load data. Failures are shown minimally or silently.
+    try{ window.setAuthUI && window.setAuthUI(); }catch(e){}
+// After login only: load data. Failures are shown minimally or silently.
   try{ await Promise.all([loadOrders(), loadMenu(), loadDailyCode()]); }catch(e){ console.warn('initial load error', e); }
 }
 
@@ -181,13 +182,13 @@ async function loadDailyCode(){
     const r=await fetch(api('/daily-code'), { headers: authHeaders() });
     if(!r.ok) return; // silent
     const j=await r.json();
-    dcDate.textContent='('+j.date+')'; dcCode.value=j.code;
+    dcDate.textContent='(' + j.date + ')'; dcCode.value=j.code;
     dcStatus.textContent=j.override?'오버라이드(오늘만)':'기본 코드'; dcStatus.className='pill '+(j.override?'warn':'ok');
     updateRemain();
   }catch(e){ /* silent */ }
 }
 regenBtn.onclick = async ()=>{ if(!TOKEN){ location.href='/login.html'; return; } const r=await fetch(api('/daily-code/regen'), { method:'POST', headers: authHeaders() }); if(r.ok){ await loadDailyCode(); alert('오늘의 새 코드가 발급되었습니다.'); } };
-clearBtn.onclick = async ()=>{ if(!TOKEN){ location.href='/login.html'; return; } const r=await fetch(api('/daily-code/clear'), { method:'POST', headers: authHeaders() }); if(r.ok){ await loadDailyCode(); alert('기본 코드로 되돌렸습니다.'); } };
+/* clearBtn removed */ if(false){ clearBtn__noop = async ()=>{ if(!TOKEN){ location.href='/login.html'; return; } const r=await fetch(api('/daily-code/clear'), { method:'POST', headers: authHeaders() }); if(r.ok){ await loadDailyCode(); alert('기본 코드로 되돌렸습니다.'); } };
 copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login.html'; return; } navigator.clipboard?.writeText(dcCode.value).then(()=> alert('복사되었습니다.')); };
 
 
