@@ -19,7 +19,7 @@
   .muted{color:var(--muted)} .hidden{display:none}
 </style>
 
-<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24" fill="#3aa3ff"/></svg>">
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='24' fill='#3aa3ff'/></svg>'>
 </head><body>
 <div class="wrap">
   <div class="row" style="justify-content:space-between">
@@ -117,15 +117,17 @@ function writeSaved(a){ localStorage.setItem(SAVED_KEY, JSON.stringify(a)); }
 function renderSaved(){
   const box=document.getElementById('qrSaved'); if(!box) return;
   const arr=readSaved().slice().sort((a,b)=> Number(a.table)-Number(b.table));
-  box.innerHTML = arr.map(it=>`
-    <div class="qrCard">
-      <a href="${it.img}" download="table-${it.table}.png" title="PNG 다운로드">
+  box.innerHTML = arr.map(it=>{
+    const dateStr = formatDate(it.savedAt || Date.now());
+    const fname = `qr-${it.table}_${dateStr}.png`;
+    return `<div class="qrCard">
+      <a href="${it.img}" download="${fname}" data-filename="${fname}" title="PNG 다운로드">
         <img src="${it.img}" alt="table ${it.table} QR"/>
       </a>
       <div class="label">테이블 ${it.table}</div>
       <button class="mini" data-del="${it.table}">삭제</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 document.getElementById('qrSaved')?.addEventListener('click',(e)=>{
   const delBtn = e.target.closest('[data-del]');
@@ -140,22 +142,79 @@ document.getElementById('clearSaved')?.addEventListener('click',()=>{
 });
 // clicking preview image downloads too
 document.getElementById('qrImg')?.addEventListener('click',()=>{
-  const a=document.getElementById('dlPng'); if(a && a.href) a.click();
+  const src=document.getElementById('dlPng')?.href || document.getElementById('qrImg')?.src;
+  const t=(document.getElementById('qrTable')?.value||'qr').trim();
+  const fname = `qr-${t||'qr'}_${formatDate(Date.now())}.png`;
+  if(src) triggerDownload(src, fname);
 });
 document.getElementById('saveQR')?.addEventListener('click',()=>{
-  if(!TOKEN){ location.href='/login'; return; }
   const t=(document.getElementById('qrTable').value||'').trim();
   const href=document.getElementById('dlPng').href || document.getElementById('qrImg').src;
   if(!t){ alert('테이블 번호를 입력하세요.'); return; }
   if(!href){ alert('먼저 QR을 생성하세요.'); return; }
+  const now = Date.now();
   const arr = readSaved();
   const i = arr.findIndex(x=> String(x.table)===String(t));
-  if(i>=0){ arr[i].img = href; } else { arr.push({table:t, img:href}); }
+  if(i>=0){ arr[i].img = href; arr[i].savedAt = now; } else { arr.push({table:t, img:href, savedAt: now}); }
+  writeSaved(arr); renderSaved();
+}); }
   writeSaved(arr); renderSaved();
 });
 // render on load
 renderSaved();
-// Menu (save/delete/add)
+
+// --- Filename helpers ---
+function pad2(n){ return String(n).padStart(2,'0'); }
+function formatDate(ts){
+  try{
+    const d = ts ? new Date(Number(ts)) : new Date();
+    const y = d.getFullYear();
+    const m = pad2(d.getMonth()+1);
+    const da = pad2(d.getDate());
+    return `${y}-${m}-${da}`; // YYYY-MM-DD
+  }catch(e){ return '0000-00-00'; }
+}
+
+
+// --- Ensure download doesn't navigate away ---
+async function triggerDownload(url, filename){
+  try{
+    let href=url;
+    if(typeof url==='string' && url.startsWith('data:')){
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      href = URL.createObjectURL(blob);
+      setTimeout(()=>URL.revokeObjectURL(href), 3000);
+    }
+    const a=document.createElement('a');
+    a.href=href;
+    a.download=filename||'qr.png';
+    document.body.appendChild(a);
+    a.click();
+    requestAnimationFrame(()=>a.remove());
+  }catch(e){ console.warn('download failed', e); }
+}
+// intercept clicks on preview link and saved grid so the page never navigates
+document.getElementById('previewLink')?.addEventListener('click',(e)=>{
+  e.preventDefault();
+  const src=document.getElementById('dlPng')?.href || document.getElementById('qrImg')?.src;
+  if(src) triggerDownload(src, 'qr.png');
+});
+document.getElementById('qrImg')?.addEventListener('click',(e)=>{
+  e.preventDefault?.();
+  const src=document.getElementById('dlPng')?.href || document.getElementById('qrImg')?.src;
+  const t=(document.getElementById('qrTable')?.value||'qr').trim();
+  if(src) triggerDownload(src, `table-${t||'qr'}.png`);
+});
+document.getElementById('qrSaved')?.addEventListener('click',(e)=>{
+  const a=e.target.closest('a[href]');
+  if(a && a.closest('#qrSaved')){
+    e.preventDefault();
+    triggerDownload(a.href, a.getAttribute('download') || a.dataset.filename || 'qr.png');
+  }
+});
+
+// removed invalid snippet)
 const menuTbody = document.querySelector('#menuTbl tbody');
 async function loadMenu(){ const r=await fetch(api('/menu')); if(!r.ok) return; const arr=await r.json(); menuTbody.innerHTML = arr.map(trHtml).join(''); }
 function trHtml(m){
@@ -215,13 +274,17 @@ setInterval(updateRemain, 60000);
 async function loadDailyCode(){
   if(!TOKEN) return;
   try{
-    const r=await fetch(api('/daily-code'), { headers: authHeaders() });
-    if(!r.ok) return; // silent
-    const j=await r.json();
-    dcDate.textContent='('+j.date+')'; dcCode.value=j.code;
-    dcStatus.textContent=j.override?'오버라이드(오늘만)':'기본 코드'; dcStatus.className='pill '+(j.override?'warn':'ok');
+    const r = await fetch(api('/daily-code'), { headers: authHeaders() });
+    if (r.status === 401) { localStorage.removeItem('adminToken'); TOKEN=''; location.href='/login'; return; }
+    if (!r.ok) return;
+    const j = await r.json();
+    dcDate.textContent = '(' + j.date + ')';
+    dcCode.value = j.code;
+    dcStatus.textContent = j.override ? '오버라이드(오늘만)' : '기본 코드';
+    dcStatus.className = 'pill ' + (j.override ? 'warn' : 'ok');
     updateRemain();
-  }catch(e){ /* silent */ }
+  } catch(e) { /* silent */ }
+}catch(e){ /* silent */ }
 }
 regenBtn.onclick = async ()=>{ if(!TOKEN){ location.href='/login'; return; } const r=await fetch(api('/daily-code/regen'), { method:'POST', headers: authHeaders() }); if(r.ok){ await loadDailyCode(); alert('오늘의 새 코드가 발급되었습니다.'); } };
 clearBtn.onclick = async ()=>{ if(!TOKEN){ location.href='/login'; return; } const r=await fetch(api('/daily-code/clear'), { method:'POST', headers: authHeaders() }); if(r.ok){ await loadDailyCode(); alert('기본 코드로 되돌렸습니다.'); } };
