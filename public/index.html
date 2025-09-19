@@ -81,6 +81,13 @@
 </div>
 
 <script>
+// --- auth helper ---
+function isAuthed(){ return !!(localStorage.getItem('adminToken')||'').trim(); }
+function hideSavedQR(hide){
+  const sec = document.getElementById('savedQRSection') || document.getElementById('savedQRBox') || null;
+  if(sec){ sec.style.display = hide ? 'none' : ''; }
+}
+
 function authHeaders(){
   const t = (localStorage.getItem('adminToken') || (typeof TOKEN!=='undefined'?TOKEN:'') || '').trim();
   const h = {}; if(t) h['Authorization']='Bearer '+t; h['Accept']='application/json'; return h;
@@ -108,6 +115,9 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=> setTabActive(t.data
 document.getElementById('logoutBtn').onclick = ()=>{ localStorage.removeItem('adminToken'); TOKEN=''; location.href='/login.html'; };
 
 async function init(){
+  try{ hideSavedQR(!isAuthed()); }catch(_){}
+  if(isAuthed()){ try{ renderSavedQR(); }catch(_){} }
+
   const r=await fetch('/api/admin-config'); const j=await r.json(); API=j.apiBase; ORDER_BASE=j.orderBase;
   if(!TOKEN){ /* not logged in: don't alert/pop; keep UI idle */ return; }
     try{ window.setAuthUI && window.setAuthUI(); }catch(e){}
@@ -215,13 +225,39 @@ async function blobToDataURL(blob){
 }
 function normalizeBase(u){ return (u||'').replace(/\/+$/,''); }
 async function makeQRDataURL(table){
+  // Fetch QR -> Blob -> Image -> Canvas -> data:image/png
   try{
     if(!ORDER_BASE && typeof orderBase!=='undefined') ORDER_BASE = orderBase;
-    const base = normalizeBase(ORDER_BASE||'');
+    const base = (ORDER_BASE||'').replace(/\/+$/,'');
     const orderUrl = base + '/?table=' + encodeURIComponent(String(table));
     const qrUrl = base + '/qr?size=220x220&data=' + encodeURIComponent(orderUrl);
     const r = await fetch(qrUrl, { method:'GET' });
-    if(!r.ok){ throw new Error('QR fetch failed'); }
+    if(!r.ok) throw new Error('QR fetch failed: ' + r.status);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const img = await new Promise((res, rej)=>{
+      const im = new Image();
+      im.onload = ()=>res(im);
+      im.onerror = (e)=>rej(e);
+      im.src = url;
+    });
+    const c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    const dataUrl = c.toDataURL('image/png'); // guaranteed data:image/png
+    URL.revokeObjectURL(url);
+    return dataUrl;
+  }catch(e){
+    // Fallback to FileReader if canvas step fails
+    try{
+      const r = await fetch(qrUrl, { method:'GET' });
+      const b = await r.blob();
+      const fr = new FileReader();
+      const dataUrl = await new Promise((res)=>{ fr.onload=()=>res(fr.result); fr.readAsDataURL(b); });
+      return dataUrl;
+    }catch(_) { throw e; }
+  }
+}
     const b = await r.blob();
     const dataUrl = await blobToDataURL(b);
     return dataUrl;
@@ -234,6 +270,46 @@ function filenameForQR(table){
 }
 
 function renderSavedQR(){
+  try{ hideSavedQR(!isAuthed()); }catch(_){};
+  if(!isAuthed()){
+    try{ const b=document.getElementById('savedQRBox'); if(b) b.innerHTML=''; }catch(_){};
+    return;
+  }
+  const box = document.getElementById('savedQRBox'); if(!box) return;
+  let arr=[]; try{ arr = JSON.parse(localStorage.getItem('savedQRs')||'[]')||[]; }catch(_){ arr=[]; }
+  arr = arr.filter(x=>x && (x.dataUrl||x.url) && String(x.table||'').trim()!=='')
+           .sort((a,b)=>Number(a.table)-Number(b.table));
+  box.innerHTML='';
+  for(const it of arr){
+    const src0 = it.dataUrl || it.url || '';
+    const card = document.createElement('div'); card.className='qr-card';
+    const a = document.createElement('a'); a.href = src0; a.download = filenameForQR(it.table);
+    const img = new Image(); img.decoding='async'; img.alt='table '+it.table+' QR'; img.style.maxWidth='120px'; img.style.display='block';
+    img.src = src0;
+
+    img.onerror = async ()=>{
+      // auto-heal: regenerate from table and update storage
+      try{
+        const fixed = await makeQRDataURL(it.table);
+        img.src = fixed; a.href = fixed;
+        let list=[]; try{ list=JSON.parse(localStorage.getItem('savedQRs')||'[]')||[]; }catch(_){}
+        list = list.map(x=> String(x.table)===String(it.table) ? Object.assign({}, x, { dataUrl: fixed }) : x);
+        localStorage.setItem('savedQRs', JSON.stringify(list));
+      }catch(e){ console.warn('QR preview heal failed', e); }
+    };
+
+    a.appendChild(img);
+    const label = document.createElement('div'); label.textContent = '테이블 ' + it.table; label.style.marginTop='6px';
+    const del = document.createElement('button'); del.className='btn'; del.textContent='삭제'; del.onclick = ()=>{
+      const cur = (JSON.parse(localStorage.getItem('savedQRs')||'[]')||[]).filter(x=>String(x.table)!==String(it.table));
+      localStorage.setItem('savedQRs', JSON.stringify(cur)); renderSavedQR();
+    };
+    card.appendChild(a); card.appendChild(label); card.appendChild(del);
+    box.appendChild(card);
+  }
+}
+  if(!isAuthed()){ try{ const b=document.getElementById('savedQRBox'); if(b) b.innerHTML=''; }catch(_){} return; }
+
   try{
     const box = document.getElementById('savedQRBox'); if(!box) return;
     const raw = localStorage.getItem('savedQRs')||'[]'; let arr=[];
