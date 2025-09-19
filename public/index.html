@@ -187,10 +187,18 @@ async function loadDailyCode(){
     updateRemain();
   }catch(e){ /* silent */ }
 }
-regenBtn.onclick = async ()=>{ if(!TOKEN){ location.href='/login.html'; return; } const r=await fetch(api('/daily-code/regen'), { method:'POST', headers: authHeaders() }); if(r.ok){ await loadDailyCode(); alert('오늘의 새 코드가 발급되었습니다.'); } };
-/* clearBtn removed */ if(false){ clearBtn__noop = async ()=>{ if(!TOKEN){ location.href='/login.html'; return; } const r=await fetch(api('/daily-code/clear'), { method:'POST', headers: authHeaders() }); if(r.ok){ await loadDailyCode(); alert('기본 코드로 되돌렸습니다.'); } };
-copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login.html'; return; } navigator.clipboard?.writeText(dcCode.value).then(()=> alert('복사되었습니다.')); };
+regenBtn.onclick = async ()=>{
+  if(!TOKEN){ location.href='/login.html'; return; }
+  const r = await fetch(api('/daily-code'), { method:'POST', headers: authHeaders() });
+  if(r.ok){ await loadDailyCode(); alert('오늘의 새 코드가 발급되었습니다.'); }
+};
+/* clearBtn removed intentionally */
+copyBtn.onclick = ()=>{
+  if(!TOKEN){ location.href='/login.html'; return; }
+  try{ navigator.clipboard?.writeText(dcCode.value).then(()=> alert('복사되었습니다.')); }catch(_){ }
+};
 
+// ======== QRX (non-invasive saved QR) ========
 
 // ======== QRX (non-invasive saved QR) ========
 (function(){
