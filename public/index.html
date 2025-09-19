@@ -96,8 +96,7 @@ document.querySelectorAll('.tab').forEach(t=> t.onclick=()=> setTabActive(t.data
 document.getElementById('logoutBtn').onclick = ()=>{ localStorage.removeItem('adminToken'); TOKEN=''; location.href='/login.html'; };
 
 async function init(){
-  const r=await fetch('/api/admin-config'); if(r.status===401){ try{ logout(); }catch(_){ location.href='/login.html'; } return; }
-    const j=await r.json(); API=j.apiBase; ORDER_BASE=j.orderBase;
+  const r=await fetch('/api/admin-config'); const j=await r.json(); API=j.apiBase; ORDER_BASE=j.orderBase;
   if(!TOKEN){ /* not logged in: don't alert/pop; keep UI idle */ return; }
     try{ window.setAuthUI && window.setAuthUI(); }catch(e){}
 // After login only: load data. Failures are shown minimally or silently.
@@ -178,10 +177,9 @@ function untilMidnightText(){ const now=new Date(); const end=new Date(now); end
 function updateRemain(){ const el=document.getElementById('dcRemain'); if(el) el.textContent = untilMidnightText(); }
 setInterval(updateRemain, 60000);
 async function loadDailyCode(){
-  if(!TOKEN) return;
   try{
-    const r=await fetch(api('/daily-code'),{headers:authHeaders()});
-    if(!r.ok) return; // silent
+    const r = await authedFetch(api('/daily-code'), { headers: authHeaders() });
+if(!r.ok) return; // silent
     const j=await r.json();
     dcDate.textContent='(' + j.date + ')'; dcCode.value=j.code;
     dcStatus.textContent=j.override?'오버라이드(오늘만)':'기본 코드'; dcStatus.className='pill '+(j.override?'warn':'ok');
@@ -190,7 +188,7 @@ async function loadDailyCode(){
 }
 regenBtn.onclick = async ()=>{
   if(!TOKEN){ location.href='/login.html'; return; }
-  const r=await fetch(api('/daily-code'),{headers:authHeaders()});
+  const r = await fetch(api('/daily-code'), { method:'POST', headers: authHeaders() });
   if(r.ok){ await loadDailyCode(); alert('오늘의 새 코드가 발급되었습니다.'); }
 };
 /* clearBtn removed intentionally */
@@ -199,22 +197,6 @@ copyBtn.onclick = ()=>{
   try{ navigator.clipboard?.writeText(dcCode.value).then(()=> alert('복사되었습니다.')); }catch(_){ }
 };
 
-
-function startOrdersSSE(){
-  try{ if(window.__ordersES){ window.__ordersES.close(); } }catch(_){}
-  const cand=['/events/orders','/api/events-orders'];
-  (function tryOpen(i){
-    if(i>=cand.length) return;
-    try{
-      const es = new EventSource(cand[i]);
-      es.onopen = ()=> console.log('SSE open:', cand[i]);
-      es.onerror = (e)=>{ console.warn('SSE error on', cand[i], e); try{es.close();}catch(_){}; tryOpen(i+1); };
-      window.__ordersES = es;
-    }catch(e){
-      console.warn('SSE open failed for', cand[i], e); tryOpen(i+1);
-    }
-  })(0);
-}
 // ======== QRX (non-invasive saved QR) ========
 
 // ======== QRX (non-invasive saved QR) ========
@@ -285,6 +267,30 @@ window.setAuthUI && window.setAuthUI();
     try{ if(e && e.key==='adminToken') window.setAuthUI && window.setAuthUI(); }catch(_){ }
   });
 
+
+let __ordersPollTimer = null;
+function stopOrdersStream(){ try{ window.__ordersES && window.__ordersES.close(); }catch(_){}; window.__ordersES=null; if(__ordersPollTimer){ clearInterval(__ordersPollTimer); __ordersPollTimer=null; } }
+function startOrdersStream(){
+  stopOrdersStream();
+  const paths = ['/api/events-orders','/events/orders'];
+  let tried = 0;
+  const openES = (i)=>{
+    if(i>=paths.length){ return startPolling(); }
+    try{
+      const es = new EventSource(paths[i]);
+      es.onopen = ()=>{ console.log('SSE open', paths[i]); window.__ordersES = es; };
+      es.onerror = (e)=>{ console.warn('SSE error', paths[i], e); try{es.close();}catch(_){}; openES(i+1); };
+      es.onmessage = (ev)=>{ try{ const d=JSON.parse(ev.data); handleOrderEvent && handleOrderEvent(d); }catch(_){ } };
+    }catch(e){ console.warn('SSE open failed', e); openES(i+1); }
+  };
+  const startPolling = ()=>{
+    console.log('Fallback to polling /orders every 5s');
+    __ordersPollTimer = setInterval(async()=>{
+      try{ const r = await fetch(api('/orders'), { headers: authHeaders() }); if(r.ok){ const d=await r.json(); if(Array.isArray(d?.events)){ d.events.forEach(x=>handleOrderEvent && handleOrderEvent(x)); } } }catch(_){}
+    }, 5000);
+  };
+  openES(0);
+}
 </script>
 
 <script>
