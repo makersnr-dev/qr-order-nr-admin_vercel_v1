@@ -81,6 +81,18 @@
 </div>
 
 <script>
+function authHeaders(){
+  const t = (localStorage.getItem('adminToken') || (typeof TOKEN!=='undefined'?TOKEN:'') || '').trim();
+  const h = {}; if(t) h['Authorization']='Bearer '+t; h['Accept']='application/json'; return h;
+}
+async function authedFetch(u, opts){
+  opts = opts || {}; const h = Object.assign({}, (opts.headers||{}), authHeaders());
+  const merged = Object.assign({ mode:'cors' }, opts, { headers:h });
+  const r = await fetch(u, merged);
+  if(r.status===401){ try{ logout(); }catch(_){ location.href='/login.html'; } throw new Error('unauthorized'); }
+  return r;
+}
+
 let API='', ORDER_BASE='', TOKEN=localStorage.getItem('adminToken')||'';
 function authHeaders(){ return { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN }; }
 function api(p){ return API + p; }
@@ -197,6 +209,55 @@ copyBtn.onclick = ()=>{
   try{ navigator.clipboard?.writeText(dcCode.value).then(()=> alert('복사되었습니다.')); }catch(_){ }
 };
 
+
+async function blobToDataURL(blob){
+  return await new Promise((res)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.readAsDataURL(blob); });
+}
+function normalizeBase(u){ return (u||'').replace(/\/+$/,''); }
+async function makeQRDataURL(table){
+  try{
+    if(!ORDER_BASE && typeof orderBase!=='undefined') ORDER_BASE = orderBase;
+    const base = normalizeBase(ORDER_BASE||'');
+    const orderUrl = base + '/?table=' + encodeURIComponent(String(table));
+    const qrUrl = base + '/qr?size=220x220&data=' + encodeURIComponent(orderUrl);
+    const r = await fetch(qrUrl, { method:'GET' });
+    if(!r.ok){ throw new Error('QR fetch failed'); }
+    const b = await r.blob();
+    const dataUrl = await blobToDataURL(b);
+    return dataUrl;
+  }catch(e){ console.warn('makeQRDataURL fail', e); throw e; }
+}
+function filenameForQR(table){
+  const d=new Date(); const z=(n)=>String(n).padStart(2,'0');
+  const yyyy=d.getFullYear(), mm=z(d.getMonth()+1), dd=z(d.getDate());
+  return 'qr' + String(table) + '_' + yyyy + '-' + mm + '-' + dd + '.png';
+}
+
+function renderSavedQR(){
+  try{
+    const box = document.getElementById('savedQRBox'); if(!box) return;
+    const raw = localStorage.getItem('savedQRs')||'[]'; let arr=[];
+    try{ arr = JSON.parse(raw)||[]; }catch(_){ arr=[]; }
+    arr = arr.filter(x=>x && (x.dataUrl||x.url) && String(x.table||'').trim()!=='')
+             .sort((a,b)=>Number(a.table)-Number(b.table));
+    box.innerHTML='';
+    for(const it of arr){
+      const src = (it.dataUrl && it.dataUrl.startsWith('data:image')) ? it.dataUrl : (it.url||'');
+      if(!src || !src.startsWith('data:image')){ continue; } // blob: 은 건너뜀
+      const card = document.createElement('div'); card.className='qr-card';
+      const a = document.createElement('a'); a.href=src; a.download = filenameForQR(it.table);
+      const img = new Image(); img.src = src; img.alt = 'table '+it.table+' QR'; img.style.maxWidth='120px'; img.style.display='block'; img.decoding='async';
+      a.appendChild(img);
+      const label = document.createElement('div'); label.textContent = '테이블 ' + it.table; label.style.marginTop='6px';
+      const del = document.createElement('button'); del.className='btn'; del.textContent='삭제'; del.onclick = ()=>{
+        const cur = JSON.parse(localStorage.getItem('savedQRs')||'[]').filter(x=>String(x.table)!==String(it.table));
+        localStorage.setItem('savedQRs', JSON.stringify(cur)); renderSavedQR();
+      };
+      card.appendChild(a); card.appendChild(label); card.appendChild(del);
+      box.appendChild(card);
+    }
+  }catch(e){ console.warn('renderSavedQR fail', e); }
+}
 // ======== QRX (non-invasive saved QR) ========
 
 // ======== QRX (non-invasive saved QR) ========
