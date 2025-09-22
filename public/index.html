@@ -218,6 +218,16 @@ init();
   // Ask notification permission once
   (function(){ if(window.Notification && Notification.permission==='default'){ Notification.requestPermission().catch(()=>{}); } })();
 
+
+  // Wrap global handleStaffCall (if defined elsewhere) to dedupe
+  if (typeof window.handleStaffCall === 'function') {
+    const __origH = window.handleStaffCall;
+    window.handleStaffCall = function(d){
+      if (!NS._shouldHandleStaff(d)) return;
+      return __origH(d);
+    }
+  }
+
 </script>
 
 <script>
@@ -272,6 +282,22 @@ init();
   };
 
   // SSE status
+
+  // Dedupe guard to avoid double alerts from multiple handlers/sources
+  NS._lastSig = null;
+  NS._lastSigAt = 0;
+  NS._shouldHandleStaff = function(d){
+    try{
+      const sig = JSON.stringify({t:d.tableNo||'', r:d.reason||'', at: Math.round((d.at||Date.now())/1000)});
+      const now = Date.now();
+      if (NS._lastSig === sig && (now - NS._lastSigAt) < 2000) {
+        return false; // duplicate within 2s -> skip
+      }
+      NS._lastSig = sig; NS._lastSigAt = now;
+      return true;
+    }catch(_){ return true; }
+  };
+
   NS.setSseStatus = function(ok){
     NS.sseConnected = !!ok;
     const el=document.getElementById('sseStatus'); if(el) el.textContent = ok ? '연결됨' : '끊김';
@@ -309,6 +335,7 @@ init();
         try{
           const data = JSON.parse(evt.data||'{}');
           if(data && data.type==='staff_call'){
+            if(!NS._shouldHandleStaff(data)) { return; }
             if(typeof handleStaffCall==='function'){ handleStaffCall(data); }
             if(NS.userEnabledBeep) NS.playBeep(150,880);
             if(window.Notification && Notification.permission==='granted'){
