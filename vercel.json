@@ -1,35 +1,36 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "public/**",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "api/*.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
-    }
-  ],
   "routes": [
+    {
+      "src": "/api/download-proxy",
+      "dest": "/api/download-proxy.js"
+    },
+    {
+      "src": "^/login$",
+      "dest": "/login.html"
+    },
     {
       "src": "^/admin-config$",
       "dest": "/api/admin-config.js"
-    },
-    {
-      "src": "^/events/orders$",
-      "dest": "/api/events-orders.js"
-    },
-    {
-      "src": "^/api/(.*)$",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "^(?!/api/).*",
-      "dest": "/public/index.html"
     }
-  ]
+  ],
+  "rewrites": [
+    {
+      "source": "/admin-config",
+      "destination": "/api/admin-config"
+    },
+    {
+      "source": "/events/orders",
+      "destination": "/api/events-orders"
+    },
+    {
+      "source": "/daily-code",
+      "destination": "/api/daily-code"
+    }
+  ],
+  "functions": {
+    "api/*.js": {
+      "runtime": "nodejs20.x"
+    }
+  }
 }

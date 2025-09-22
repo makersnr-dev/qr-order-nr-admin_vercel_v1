@@ -1,8 +1,13 @@
 {
-  "name": "qr-order-admin",
-  "private": true,
+  "name": "qrorder-admin-full",
+  "version": "1.5.8",
   "type": "module",
-  "engines": {
-    "node": "18.x"
+  "main": "admin_server.js",
+  "scripts": {
+    "start": "node admin_server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5"
   }
 }
