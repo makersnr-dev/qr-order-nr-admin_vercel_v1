@@ -20,6 +20,25 @@
 .staff-call{padding:8px;border:1px solid #335;border-radius:10px;margin:6px 0}
 </style>
 </head><body>
+
+<div class="card" id="notifyCard">
+  <h3>알림 설정/점검</h3>
+  <div class="row" style="gap:8px;flex-wrap:wrap">
+    <div>연결 상태: <b id="sseStatus">확인 중...</b></div>
+    <div>브라우저 권한: <b id="notifPerm">확인 중...</b></div>
+  </div>
+  <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px">
+    <button class="btn" id="btnEnableSound">소리 활성화</button>
+    <button class="btn" id="btnTestSound">소리 테스트</button>
+    <button class="btn" id="btnRequestNotif">브라우저 알림 허용 요청</button>
+    <button class="btn" id="btnTestNotif">브라우저 알림 테스트</button>
+  </div>
+  <div class="small" id="notifyHelp" style="margin-top:6px">
+    - 소리는 브라우저 정책상 <b>한 번 클릭</b>으로 활성화해야 합니다. 위 버튼을 먼저 눌러 주세요.<br/>
+    - 페이지가 <b>열려 있어야</b> 실시간 알림을 받습니다. (무료 구성, 백그라운드 푸시는 미구현)
+  </div>
+</div>
+
 <div class="wrap">
   <div class="row" style="justify-content:space-between">
     <h2>관리자 콘솔</h2>
@@ -309,6 +328,82 @@ init();
       }catch(e){}
     }
   }
+
+
+  // --- NotifyCard Helpers ---
+  let userEnabledBeep = false;
+  let audioCtx = null;
+  function ensureAudio(){
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      if(audioCtx.state==='suspended') audioCtx.resume();
+    }catch(_){}
+  }
+  function playBeep(ms=150, freq=880){
+    try{
+      ensureAudio();
+      if(!audioCtx) return;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g).connect(audioCtx.destination);
+      o.type='sine'; o.frequency.value=freq; g.gain.value=0.05;
+      o.start(); setTimeout(()=>{ try{o.stop();}catch(_){ } }, ms);
+    }catch(_){}
+  }
+  function updateNotifPerm(){
+    try{
+      const s=(window.Notification&&Notification.permission)?Notification.permission:'unsupported';
+      const el=document.getElementById('notifPerm'); if(el) el.textContent=s;
+    }catch(_){}
+  }
+  function requestNotif(){
+    if(!window.Notification){ alert('이 브라우저는 알림을 지원하지 않습니다.'); return; }
+    Notification.requestPermission().then(updateNotifPerm);
+  }
+  function testNotif(){
+    if(window.Notification && Notification.permission==='granted'){
+      new Notification('테스트 알림', { body: '직원 호출 알림이 이렇게 표시됩니다.' });
+    }else{
+      alert('먼저 [브라우저 알림 허용 요청]을 눌러 권한을 허용해주세요.');
+    }
+  }
+  let sseConnected=false;
+  function setSseStatus(ok){
+    sseConnected=!!ok;
+    const el=document.getElementById('sseStatus'); if(el) el.textContent = ok ? '연결됨' : '끊김';
+  }
+  (function(){
+    updateNotifPerm();
+    const b1=document.getElementById('btnEnableSound'); if(b1) b1.onclick=()=>{ userEnabledBeep=true; playBeep(); };
+    const b2=document.getElementById('btnTestSound'); if(b2) b2.onclick=()=>{ playBeep(); };
+    const b3=document.getElementById('btnRequestNotif'); if(b3) b3.onclick=requestNotif;
+    const b4=document.getElementById('btnTestNotif'); if(b4) b4.onclick=testNotif;
+  })();
+  // Bind SSE state + staff_call handler
+  (function(){
+    try{
+      if(typeof es!=='undefined' && es){
+        es.onopen=()=>setSseStatus(true);
+        es.onerror=()=>setSseStatus(false);
+        const prev=es.onmessage;
+        es.onmessage=(evt)=>{
+          setSseStatus(true);
+          try{
+            const data=JSON.parse(evt.data||'{}');
+            if(data && data.type==='staff_call'){
+              if(typeof handleStaffCall==='function'){ handleStaffCall(data); }
+              if(userEnabledBeep) playBeep(150,880);
+              if(window.Notification && Notification.permission==='granted'){
+                new Notification('직원 호출', { body: `테이블 ${data.tableNo||''} ${data.reason||''}` });
+              }
+              return;
+            }
+          }catch(_){}
+          if(prev) prev(evt);
+        }
+      }
+    }catch(_){}
+  })();
 
 </script>
 </body></html>
