@@ -90,6 +90,8 @@
 </div>
 
 <script>
+if(!window.__QR_NOTIFY_INIT__){window.__QR_NOTIFY_INIT__=true;
+
 let API='', ORDER_BASE='', TOKEN=localStorage.getItem('adminToken')||'';
 function authHeaders(){ return { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN }; }
 function api(p){ return API + p; }
@@ -220,21 +222,21 @@ init();
 
 
   // --- Reliable Beep via WebAudio (requires user gesture once) ---
-  let userEnabledBeep = false;
-  let audioCtx = null;
+  let __qr_userEnabledBeep = false;
+  let __qr_audioCtx = null;
   function ensureAudio(){
     try{
-      if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-      if(audioCtx.state === 'suspended') audioCtx.resume();
+      if(!__qr_audioCtx) __qr_audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      if(__qr_audioCtx.state === 'suspended') __qr_audioCtx.resume();
     }catch(e){ console.warn('Audio ctx', e); }
   }
   function playBeep(ms=150, freq=880){
     try{
       ensureAudio();
-      if(!audioCtx) return;
-      const o = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
-      o.connect(g).connect(audioCtx.destination);
+      if(!__qr_audioCtx) return;
+      const o = __qr_audioCtx.createOscillator();
+      const g = __qr_audioCtx.createGain();
+      o.connect(g).connect(__qr_audioCtx.destination);
       o.type='sine'; o.frequency.value = freq;
       g.gain.value = 0.05;
       o.start();
@@ -266,9 +268,9 @@ init();
   }
 
   // --- SSE status UI ---
-  let sseConnected = false;
+  let __qr_sseConnected = false;
   function setSseStatus(ok){
-    sseConnected = !!ok;
+    __qr_sseConnected = !!ok;
     const el = document.getElementById('sseStatus');
     if(el) el.textContent = ok ? '연결됨' : '끊김';
   }
@@ -276,7 +278,7 @@ init();
   // Wire buttons after DOM ready
   (function(){
     updateNotifPerm();
-    const b1=document.getElementById('btnEnableSound'); if(b1) b1.onclick=()=>{ userEnabledBeep=true; playBeep(); };
+    const b1=document.getElementById('btnEnableSound'); if(b1) b1.onclick=()=>{ __qr_userEnabledBeep=true; playBeep(); };
     const b2=document.getElementById('btnTestSound'); if(b2) b2.onclick=()=>{ playBeep(); };
     const b3=document.getElementById('btnRequestNotif'); if(b3) b3.onclick=requestNotif;
     const b4=document.getElementById('btnTestNotif'); if(b4) b4.onclick=testNotif;
@@ -313,7 +315,7 @@ init();
         row.className='staff-call';
         row.innerHTML = `<b>${time.toLocaleTimeString()}</b> — 테이블 <b>${(d.tableNo||'?')}</b> 직원 호출` + (d.reason? ` <span class="small">(${d.reason})</span>`:'');
         if(box) box.prepend(row);
-        if(userEnabledBeep) playBeep(150, 880);
+        if(__qr_userEnabledBeep) playBeep(150, 880);
         if (window.Notification && Notification.permission==='granted'){
           new Notification('직원 호출', { body: `테이블 ${d.tableNo||''} ${d.reason||''}` });
         }
@@ -324,28 +326,28 @@ init();
     handleStaffCall = function(d){
       try{
         _origHandleStaffCall(d);
-        if(userEnabledBeep) playBeep(150, 880);
+        if(__qr_userEnabledBeep) playBeep(150, 880);
       }catch(e){}
     }
   }
 
 
   // --- NotifyCard Helpers ---
-  let userEnabledBeep = false;
-  let audioCtx = null;
+  let __qr_userEnabledBeep = false;
+  let __qr_audioCtx = null;
   function ensureAudio(){
     try{
-      if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-      if(audioCtx.state==='suspended') audioCtx.resume();
+      if(!__qr_audioCtx) __qr_audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      if(__qr_audioCtx.state==='suspended') __qr_audioCtx.resume();
     }catch(_){}
   }
   function playBeep(ms=150, freq=880){
     try{
       ensureAudio();
-      if(!audioCtx) return;
-      const o = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
-      o.connect(g).connect(audioCtx.destination);
+      if(!__qr_audioCtx) return;
+      const o = __qr_audioCtx.createOscillator();
+      const g = __qr_audioCtx.createGain();
+      o.connect(g).connect(__qr_audioCtx.destination);
       o.type='sine'; o.frequency.value=freq; g.gain.value=0.05;
       o.start(); setTimeout(()=>{ try{o.stop();}catch(_){ } }, ms);
     }catch(_){}
@@ -367,14 +369,14 @@ init();
       alert('먼저 [브라우저 알림 허용 요청]을 눌러 권한을 허용해주세요.');
     }
   }
-  let sseConnected=false;
+  let __qr_sseConnected=false;
   function setSseStatus(ok){
-    sseConnected=!!ok;
+    __qr_sseConnected=!!ok;
     const el=document.getElementById('sseStatus'); if(el) el.textContent = ok ? '연결됨' : '끊김';
   }
   (function(){
     updateNotifPerm();
-    const b1=document.getElementById('btnEnableSound'); if(b1) b1.onclick=()=>{ userEnabledBeep=true; playBeep(); };
+    const b1=document.getElementById('btnEnableSound'); if(b1) b1.onclick=()=>{ __qr_userEnabledBeep=true; playBeep(); };
     const b2=document.getElementById('btnTestSound'); if(b2) b2.onclick=()=>{ playBeep(); };
     const b3=document.getElementById('btnRequestNotif'); if(b3) b3.onclick=requestNotif;
     const b4=document.getElementById('btnTestNotif'); if(b4) b4.onclick=testNotif;
@@ -392,7 +394,7 @@ init();
             const data=JSON.parse(evt.data||'{}');
             if(data && data.type==='staff_call'){
               if(typeof handleStaffCall==='function'){ handleStaffCall(data); }
-              if(userEnabledBeep) playBeep(150,880);
+              if(__qr_userEnabledBeep) playBeep(150,880);
               if(window.Notification && Notification.permission==='granted'){
                 new Notification('직원 호출', { body: `테이블 ${data.tableNo||''} ${data.reason||''}` });
               }
@@ -405,5 +407,6 @@ init();
     }catch(_){}
   })();
 
+}
 </script>
 </body></html>
