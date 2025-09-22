@@ -286,13 +286,25 @@ init();
     const b4=document.getElementById('btnTestNotif'); if(b4) b4.onclick=NS.testNotif;
   });
 
-  // Hook SSE if present (es is defined elsewhere in this page)
+
+  // Hook / create SSE
   try{
-    if(typeof es!=='undefined' && es){
-      es.onopen = ()=>NS.setSseStatus(true);
-      es.onerror = ()=>NS.setSseStatus(false);
-      const prev = es.onmessage;
-      es.onmessage = (evt)=>{
+    // Use existing global 'es' if available; else create our own EventSource to the admin's proxy endpoint
+    if (typeof es === 'undefined' || !es) {
+      if (!NS.es) {
+        const eventsUrl = '/events/orders';
+        NS.es = new EventSource(eventsUrl);
+      }
+    } else {
+      NS.es = es;
+    }
+
+    if (NS.es) {
+      NS.es.onopen = ()=>NS.setSseStatus(true);
+      NS.es.onerror = ()=>NS.setSseStatus(false);
+
+      const prev = NS.es.onmessage;
+      NS.es.onmessage = (evt)=>{
         NS.setSseStatus(true);
         try{
           const data = JSON.parse(evt.data||'{}');
@@ -302,13 +314,36 @@ init();
             if(window.Notification && Notification.permission==='granted'){
               new Notification('직원 호출', { body: `테이블 ${data.tableNo||''} ${data.reason||''}` });
             }
+            NS._lastMsgAt = Date.now();
             return;
           }
         }catch(_){}
         if(prev) prev(evt);
+        NS._lastMsgAt = Date.now();
+      };
+
+      // Heartbeat watcher: if no message for 60s and readyState != 1, mark disconnected
+      NS._lastMsgAt = Date.now();
+      if (!NS._hb) {
+        NS._hb = setInterval(()=>{
+          const ok = NS.es && NS.es.readyState === 1;
+          const silentTooLong = (Date.now() - (NS._lastMsgAt||0)) > 60000;
+          NS.setSseStatus(ok && !silentTooLong);
+        }, 5000);
       }
     }
   }catch(_){}
+
+  // Update notification button state
+  (function(){
+    const state = (window.Notification && Notification.permission) ? Notification.permission : 'unsupported';
+    const btn = document.getElementById('btnRequestNotif');
+    if (btn) {
+      if (state === 'granted') { btn.textContent = '브라우저 알림 허용됨'; btn.disabled = true; }
+      else if (state === 'denied') { btn.textContent = '브라우저 알림 차단됨'; btn.disabled = true; }
+    }
+  })();
+
 })();
 </script>
 
