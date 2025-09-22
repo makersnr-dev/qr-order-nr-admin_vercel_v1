@@ -18,14 +18,31 @@
   .pill.warn{background:#2a160b;border-color:#4e331f;color:#ffd9b3}
   .muted{color:var(--muted)} .hidden{display:none}
 .staff-call{padding:8px;border:1px solid #335;border-radius:10px;margin:6px 0}
+
+/* Modal for 알림 설정/점검 */
+.notify-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:1000}
+.notify-modal.open{display:flex}
+.notify-panel{background:#0e1a26;border:1px solid #234;border-radius:14px;max-width:720px;width:92%;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.notify-panel h3{margin-top:0}
+.notify-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.notify-meta{display:flex;gap:16px;flex-wrap:wrap}
+.notify-close{position:absolute;right:16px;top:12px;cursor:pointer;border:1px solid #345;border-radius:8px;padding:4px 8px}
+
 </style>
 </head><body>
 
-<div class="card" id="notifyCard">
+
+<div class="notify-modal" id="notifyModal" aria-hidden="true">
+  <div class="notify-panel">
+    <button class="notify-close" id="notifyCloseBtn">닫기</button>
+    <div id="notifyCard">
   <h3>알림 설정/점검</h3>
   <div class="row" style="gap:8px;flex-wrap:wrap">
     <div>연결 상태: <b id="sseStatus">확인 중...</b></div>
-    <div>브라우저 권한: <b id="notifPerm">확인 중...</b></div>
+    
+  </div>
+</div>
+<div>브라우저 권한: <b id="notifPerm">확인 중...</b></div>
   </div>
   <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px">
     <button class="btn" id="btnEnableSound">소리 활성화</button>
@@ -52,7 +69,7 @@
     <div class="tab active" data-tab="orders">주문목록</div>
     <div class="tab" data-tab="qr">QR 배포</div>
     <div class="tab" data-tab="menu">메뉴 관리</div>
-    <div class="tab" data-tab="code">결제 코드</div>
+    <div class="tab" data-tab="code">결제 코드<button class="btn" id="openNotifyBtn" style="margin-left:8px">알림 설정/점검</button>/div>
   </div>
 
   <div id="pane-orders" class="card">
@@ -371,6 +388,162 @@ init();
     }
   })();
 
+})();
+</script>
+
+
+<script>
+(function(){
+  if (window.__QR_NOTIFY && window.__QR_NOTIFY.initModalDone) return;
+  window.__QR_NOTIFY = window.__QR_NOTIFY || {};
+  const NS = window.__QR_NOTIFY;
+  NS.initModalDone = true;
+
+  // UI: modal open/close
+  function qs(id){ return document.getElementById(id); }
+  function openModal(){ const m=qs('notifyModal'); if(m){ m.classList.add('open'); m.setAttribute('aria-hidden','false'); } }
+  function closeModal(){ const m=qs('notifyModal'); if(m){ m.classList.remove('open'); m.setAttribute('aria-hidden','true'); } }
+  document.addEventListener('DOMContentLoaded', ()=>{
+    const openBtn = qs('openNotifyBtn'); if(openBtn) openBtn.onclick = openModal;
+    const closeBtn = qs('notifyCloseBtn'); if(closeBtn) closeBtn.onclick = closeModal;
+  });
+
+  // Status helpers
+  NS.userEnabledBeep = NS.userEnabledBeep || false;
+  NS.audioCtx = NS.audioCtx || null;
+  NS.sseConnected = NS.sseConnected || false;
+  NS._lastMsgAt = NS._lastMsgAt || 0;
+  NS._lastSig = NS._lastSig || null;
+  NS._lastSigAt = NS._lastSigAt || 0;
+  NS._hb = NS._hb || null;
+  NS._retries = NS._retries || 0;
+
+  NS.setSseStatus = function(ok, extra){
+    NS.sseConnected = !!ok;
+    var el = document.getElementById('sseStatus'); if(el) el.textContent = ok ? '연결됨' : '끊김';
+    if(extra){ var help = document.getElementById('notifyHelp'); if(help){ help.setAttribute('data-last-error', String(extra)); } }
+  };
+
+  // Dedupe guard (keep prior logic)
+  NS._shouldHandleStaff = function(d){
+    try{
+      const sig = JSON.stringify({t:d.tableNo||'', r:d.reason||'', at: Math.round((d.at||Date.now())/1000)});
+      const now = Date.now();
+      if (NS._lastSig === sig && (now - NS._lastSigAt) < 2000) { return false; }
+      NS._lastSig = sig; NS._lastSigAt = now;
+      return true;
+    }catch(_){ return true; }
+  };
+
+  // Audio
+  NS.ensureAudio = function(){
+    try{
+      if(!NS.audioCtx) NS.audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      if(NS.audioCtx.state==='suspended') NS.audioCtx.resume();
+    }catch(_){}
+  };
+  NS.playBeep = function(ms=150, freq=880){
+    try{
+      NS.ensureAudio();
+      if(!NS.audioCtx) return;
+      const o = NS.audioCtx.createOscillator();
+      const g = NS.audioCtx.createGain();
+      o.connect(g).connect(NS.audioCtx.destination);
+      o.type='sine'; o.frequency.value=freq; g.gain.value=0.06;
+      o.start(); setTimeout(()=>{ try{o.stop();}catch(_){ } }, ms);
+    }catch(_){}
+  };
+
+  // Notifications
+  NS.updateNotifPerm = function(){
+    try{
+      const s=(window.Notification&&Notification.permission)?Notification.permission:'unsupported';
+      const el=document.getElementById('notifPerm'); if(el) el.textContent=s;
+      const btn=document.getElementById('btnRequestNotif'); if(btn){
+        if(s==='granted'){ btn.textContent='브라우저 알림 허용됨'; btn.disabled=true; }
+        else if(s==='denied'){ btn.textContent='브라우저 알림 차단됨'; btn.disabled=true; }
+      }
+    }catch(_){}
+  };
+  NS.requestNotif = function(){
+    if(!window.Notification){ alert('이 브라우저는 알림을 지원하지 않습니다.'); return; }
+    Notification.requestPermission().then(NS.updateNotifPerm);
+  };
+  NS.testNotif = function(){
+    if(window.Notification && Notification.permission==='granted'){
+      new Notification('테스트 알림', { body: '직원 호출 알림이 이렇게 표시됩니다.' });
+    }else{
+      alert('먼저 [브라우저 알림 허용 요청]을 눌러 권한을 허용해주세요.');
+    }
+  };
+
+  // Robust SSE (create on our own + reconnect with backoff)
+  NS.startSSE = function(){
+    try{
+      if (NS.es) { try{ NS.es.close(); }catch(_){ } }
+      const url = '/events/orders';
+      const es = new EventSource(url);
+      NS.es = es;
+      NS._retries = 0;
+      NS.setSseStatus(false);
+
+      es.onopen = ()=>{ NS.setSseStatus(true); };
+      es.onerror = (e)=>{ 
+        NS.setSseStatus(false, 'onerror');
+        // reconnect will be scheduled below by readyState watcher
+      };
+      const prev = es.onmessage;
+      es.onmessage = (evt)=>{
+        NS.setSseStatus(true);
+        try{
+          const data = JSON.parse(evt.data||'{}');
+          if(data && data.type==='staff_call'){
+            if(!NS._shouldHandleStaff(data)) return;
+            if(typeof handleStaffCall==='function'){ handleStaffCall(data); }
+            if(NS.userEnabledBeep) NS.playBeep(150,880);
+            if(window.Notification && Notification.permission==='granted'){
+              new Notification('직원 호출', { body: `테이블 ${data.tableNo||''} ${data.reason||''}` });
+            }
+            NS._lastMsgAt = Date.now();
+            return;
+          }
+        }catch(_){}
+        if(prev) prev(evt);
+        NS._lastMsgAt = Date.now();
+      };
+
+      // Heartbeat + reconnect
+      if (!NS._hb) {
+        NS._hb = setInterval(()=>{
+          const ok = NS.es && NS.es.readyState === 1;
+          const silentTooLong = (Date.now() - (NS._lastMsgAt||0)) > 60000;
+          if (!(ok && !silentTooLong)) {
+            // schedule reconnect with backoff
+            if (!NS._reconnecting) {
+              NS._reconnecting = true;
+              const delay = Math.min(30000, 1000 * Math.pow(2, Math.min(NS._retries, 5))); // 1s -> 32s
+              setTimeout(()=>{ NS._retries++; NS._reconnecting=false; NS.startSSE(); }, delay);
+            }
+          }
+          NS.setSseStatus(ok && !silentTooLong, ok ? '' : 'retrying');
+        }, 5000);
+      }
+    }catch(err){
+      NS.setSseStatus(false, String(err&&err.message||'error'));
+    }
+  };
+
+  // Wire notify buttons
+  document.addEventListener('DOMContentLoaded', function(){
+    NS.updateNotifPerm();
+    const b1=document.getElementById('btnEnableSound'); if(b1) b1.onclick=()=>{ NS.userEnabledBeep=true; NS.playBeep(); };
+    const b2=document.getElementById('btnTestSound'); if(b2) b2.onclick=()=>{ NS.playBeep(); };
+    const b3=document.getElementById('btnRequestNotif'); if(b3) b3.onclick=NS.requestNotif;
+    const b4=document.getElementById('btnTestNotif'); if(b4) b4.onclick=NS.testNotif;
+  });
+
+  // Start SSE after DOM ready
+  document.addEventListener('DOMContentLoaded', function(){ NS.startSSE(); });
 })();
 </script>
 
