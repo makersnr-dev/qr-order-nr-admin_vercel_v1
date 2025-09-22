@@ -54,10 +54,19 @@
   </div>
 
   <div id="pane-qr" class="card hidden">
-    <div class="row"><input id="qrTable" placeholder="테이블 번호"/> <button class="btn" id="makeQR">QR 생성</button> <a id="dlPng" class="btn" href="#" download="qr.png">PNG 다운로드</a> <button class="btn" id="qrxSave">현재 QR 저장</button> <button class="btn" id="qrxClear">전체 삭제</button></div>
-    <div style="margin-top:10px"><img id="qrImg" style="background:#fff;border-radius:8px;cursor:pointer"/></div>
-    <div class="card" style="margin-top:12px">      <div class="row" style="justify-content:space-between"><b>저장된 QR</b><span class="muted">이미지를 클릭하면 PNG가 저장됩니다.</span></div>      <div id="qrxSaved" class="qrxGrid" style="margin-top:10px"></div>    </div>
-  </div>
+    <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+      <input id="qrv2-table" type="number" min="1" placeholder="테이블 번호" style="padding:8px;border-radius:8px;border:1px solid #223;background:#0e1520;color:#e6edf3;width:140px"/>
+      <button class="btn" id="qrv2-generate">QR 생성</button>
+      <button class="btn" id="qrv2-save">현재 QR 저장</button>
+      <button class="btn" id="qrv2-download">PNG 다운로드</button>
+      <button class="btn" id="qrv2-clear">전체 삭제</button>
+      <span id="qrv2-msg" class="muted"></span>
+    </div>
+    <div style="margin-top:10px"><img id="qrv2-preview" style="background:#fff;border-radius:8px;cursor:pointer;width:220px;height:220px;object-fit:contain"/></div>
+    <div class="card" style="margin-top:12px">
+      <div class="row" style="justify-content:space-between"><b>저장된 QR</b><span class="muted">이미지를 클릭하면 PNG 1개가 저장됩니다.</span></div>
+      <div id="qrv2-grid" class="qrv2-grid" style="margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px"></div>
+    </div>
 
   <div id="pane-menu" class="card hidden">
     <div class="row"><input id="m_id" placeholder="id"/><input id="m_name" placeholder="이름"/><input id="m_price" placeholder="가격" type="number"/><button class="btn" id="m_add">추가</button></div>
@@ -477,174 +486,112 @@ function startOrdersStream(){
 </script>
 <script src="/admin-enhance.js"></script>
 
-  <!-- ===== QR V2 (clean rewrite) ===== -->
-  <section id="qr-v2" style="margin-top:18px">
-    <h3 style="margin:8px 0 12px">QR 배포 (새 버전)</h3>
-    <div class="qrv2-row" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
-      <input id="qrv2-table" type="number" min="1" placeholder="테이블 번호" style="padding:8px;border-radius:8px;border:1px solid #223;background:#0e1520;color:#e6edf3;width:140px">
-      <button id="qrv2-generate" class="btn">QR 생성</button>
-      <button id="qrv2-save" class="btn">저장</button>
-      <span id="qrv2-msg" style="color:#9fb0c3"></span>
-    </div>
-    <div style="display:flex; gap:16px; align-items:flex-start; margin-top:12px">
-      <img id="qrv2-preview" alt="QR 미리보기" style="width:220px;height:220px;border:1px solid #223;border-radius:10px;background:#0b0f14;object-fit:contain">
-    </div>
-    <p class="muted" style="margin-top:6px;color:#9fb0c3">* 저장된 QR 이미지는 아래 그리드에 표시됩니다. 이미지를 클릭하면 PNG 1개가 저장됩니다.</p>
-    <div id="qrv2-grid" class="qrv2-grid" style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px"></div>
-  </section>
-  <!-- ===== /QR V2 ===== -->
-
-
 <script>
 (() => {
   const LS_KEY = 'qrSavedV2';
   let ORDER_BASE = '';
-  let working = false;
+  let busy = false;
 
-  function pad(n){ return String(n).padStart(2,'0'); }
+  function pad(n){return String(n).padStart(2,'0');}
   function stamp(d=new Date()){
     return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
   }
-
-  function getOrderBase(){
-    if (ORDER_BASE) return ORDER_BASE;
-    try{ if (window.orderBase) return window.orderBase; }catch(_){}
+  function getBase(){
     try{ if (window.ORDER_BASE) return window.ORDER_BASE; }catch(_){}
     return location.origin;
   }
-
-  async function loadConfig(){
+  async function loadCfg(){
     try{
-      const r = await fetch('/admin-config', {cache:'no-store'});
-      if(r.ok){
-        const j = await r.json();
-        ORDER_BASE = (j.orderBase||'').replace(/\/+$/,'');
-      }else{
-        ORDER_BASE = getOrderBase();
-      }
-    }catch(_){ ORDER_BASE = getOrderBase(); }
+      const r = await fetch('/admin-config',{cache:'no-store'});
+      if(r.ok){ const j=await r.json(); ORDER_BASE=(j.orderBase||'').replace(/\/+$/,''); }
+      else ORDER_BASE=getBase();
+    }catch(_){ ORDER_BASE=getBase(); }
   }
-
-  function orderUrl(table){
-    const base = (ORDER_BASE||getOrderBase()).replace(/\/+$/,'');
-    return base + '/?table=' + encodeURIComponent(String(table));
+  function orderUrl(t){
+    const b=(ORDER_BASE||getBase()).replace(/\/+$/,'');
+    return b+'/?table='+encodeURIComponent(String(t));
   }
-
-  async function toPngDataURLFromServer(data, size='220x220'){
-    const base = (ORDER_BASE||getOrderBase()).replace(/\/+$/,'');
-    const url = base + '/qr?size=' + encodeURIComponent(size) + '&data=' + encodeURIComponent(data);
-    const r = await fetch(url, {method:'GET', cache:'no-store'});
-    if(!r.ok) throw new Error('QR fetch failed: '+r.status);
-    const blob = await r.blob();
-    const objUrl = URL.createObjectURL(blob);
-    const img = await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=objUrl; });
-    const c = document.createElement('canvas');
-    c.width = img.width; c.height = img.height;
-    c.getContext('2d').drawImage(img,0,0);
-    const dataUrl = c.toDataURL('image/png');
-    URL.revokeObjectURL(objUrl);
-    return dataUrl;
+  async function qrToDataURL(data, size='220x220'){
+    const b=(ORDER_BASE||getBase()).replace(/\/+$/,'');
+    const url=b+'/qr?size='+encodeURIComponent(size)+'&data='+encodeURIComponent(data);
+    const r=await fetch(url,{cache:'no-store'});
+    if(!r.ok) throw new Error('QR fetch failed '+r.status);
+    const blob=await r.blob();
+    const obj=URL.createObjectURL(blob);
+    const img=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=obj;});
+    const c=document.createElement('canvas'); c.width=img.width; c.height=img.height; c.getContext('2d').drawImage(img,0,0);
+    URL.revokeObjectURL(obj);
+    return c.toDataURL('image/png');
   }
-
-  function readSaved(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'[]')||[]; }catch(_){ return []; } }
-  function writeSaved(list){ try{ localStorage.setItem(LS_KEY, JSON.stringify(list||[])); }catch(_){ } }
-
+  function loadSaved(){ try{return JSON.parse(localStorage.getItem(LS_KEY)||'[]')||[];}catch(_){return [];} }
+  function saveAll(list){ try{localStorage.setItem(LS_KEY, JSON.stringify(list||[]));}catch(_){ } }
   function upsert(table, dataUrl){
-    let list = readSaved();
-    const t = String(table);
-    list = list.filter(x => String(x.table)!==t);
-    list.push({ table: t, dataUrl, savedAt: new Date().toISOString() });
-    list.sort((a,b)=> Number(a.table)-Number(b.table));
-    writeSaved(list);
-    return list;
+    const t=String(table); let list=loadSaved().filter(x=>String(x.table)!==t);
+    list.push({table:t,dataUrl,savedAt:new Date().toISOString()});
+    list.sort((a,b)=>Number(a.table)-Number(b.table));
+    saveAll(list);
   }
   function removeOne(table){
-    let list = readSaved();
-    list = list.filter(x => String(x.table)!==String(table));
-    writeSaved(list);
+    const t=String(table); let list=loadSaved().filter(x=>String(x.table)!==t); saveAll(list);
   }
+  function clearAll(){ saveAll([]); }
 
   async function render(){
-    const grid = document.getElementById('qrv2-grid');
-    if(!grid) return;
-    const list = readSaved();
-    grid.innerHTML = '';
+    const grid=document.getElementById('qrv2-grid'); if(!grid) return;
+    const list=loadSaved(); grid.innerHTML='';
     for(const it of list){
-      const t = String(it.table);
-      const ts = stamp(new Date(it.savedAt||Date.now()));
-
-      const card = document.createElement('div');
-      card.style.border='1px solid #223'; card.style.borderRadius='12px';
-      card.style.padding='10px'; card.style.background='#0d131b';
-      card.style.display='flex'; card.style.flexDirection='column';
-      card.style.alignItems='center'; card.style.gap='8px';
-
-      const a = document.createElement('a');
-      a.href = it.dataUrl;
-      a.setAttribute('download', `qr${t}_${ts}.png`);
-
-      const img = document.createElement('img');
-      img.src = it.dataUrl;
-      img.alt = `table ${t} QR`;
-      img.style.maxWidth='140px'; img.style.maxHeight='140px'; img.style.display='block';
-      img.loading='lazy';
+      const t=String(it.table); const ts=stamp(new Date(it.savedAt||Date.now()));
+      const card=document.createElement('div'); card.style.border='1px solid #223'; card.style.borderRadius='12px'; card.style.padding='10px'; card.style.background='#0d131b'; card.style.display='flex'; card.style.flexDirection='column'; card.style.alignItems='center'; card.style.gap='8px';
+      const a=document.createElement('a'); a.href=it.dataUrl; a.download=`qr${t}_${ts}.png`;
+      const img=document.createElement('img'); img.src=it.dataUrl; img.alt=`table ${t} QR`; img.style.maxWidth='140px'; img.style.maxHeight='140px'; img.style.display='block'; img.loading='lazy';
       a.appendChild(img);
-
-      const label = document.createElement('div');
-      label.textContent = `테이블 ${t}`;
-      label.style.color = '#e6edf3';
-
-      const del = document.createElement('button');
-      del.textContent='삭제'; del.className='btn small';
-      del.addEventListener('click', ()=>{ removeOne(t); render(); });
-
-      card.appendChild(a); card.appendChild(label); card.appendChild(del);
-      grid.appendChild(card);
+      const label=document.createElement('div'); label.textContent=`테이블 ${t}`; label.style.color='#e6edf3';
+      const del=document.createElement('button'); del.textContent='삭제'; del.className='btn small'; del.addEventListener('click',()=>{ removeOne(t); render(); });
+      card.appendChild(a); card.appendChild(label); card.appendChild(del); grid.appendChild(card);
     }
   }
 
-  async function onGenerate(){
-    if(working) return; working=true;
-    const msg = document.getElementById('qrv2-msg');
+  async function onGen(){
+    if(busy) return; busy=true;
+    const msg=document.getElementById('qrv2-msg');
     try{
       msg.textContent='생성 중...';
-      const input = document.getElementById('qrv2-table');
-      const table = (input.value||'').trim();
-      if(!table){ msg.textContent='테이블 번호를 입력하세요.'; return; }
-      const dataUrl = await toPngDataURLFromServer(orderUrl(table), '220x220');
-      const img = document.getElementById('qrv2-preview');
-      img.src = dataUrl; img.dataset.table = table;
-      msg.textContent='미리보기가 준비되었습니다.';
-    }catch(e){ console.warn(e); msg.textContent='생성 실패'; }
-    finally{ working=false; }
+      const t=document.getElementById('qrv2-table').value.trim();
+      if(!t){ msg.textContent='테이블 번호를 입력하세요.'; return; }
+      const dataUrl=await qrToDataURL(orderUrl(t),'220x220');
+      const img=document.getElementById('qrv2-preview'); img.src=dataUrl; img.dataset.table=t;
+      msg.textContent='미리보기 준비됨';
+    }catch(e){ console.warn(e); msg.textContent='실패'; }
+    finally{ busy=false; }
   }
-
   async function onSave(){
-    if(working) return; working=true;
-    const msg = document.getElementById('qrv2-msg');
+    if(busy) return; busy=true;
+    const msg=document.getElementById('qrv2-msg');
     try{
-      const img = document.getElementById('qrv2-preview');
-      const table = img?.dataset?.table || document.getElementById('qrv2-table').value;
-      if(!table){ msg.textContent='먼저 QR을 생성하세요.'; return; }
-      if(!img.src || !img.src.startsWith('data:image')){
-        const dataUrl = await toPngDataURLFromServer(orderUrl(table), '220x220');
-        img.src = dataUrl;
-      }
-      upsert(table, img.src);
-      await render();
-      msg.textContent='저장되었습니다.';
+      const img=document.getElementById('qrv2-preview'); let t=img.dataset.table || document.getElementById('qrv2-table').value.trim();
+      if(!t){ msg.textContent='먼저 QR을 생성하세요.'; return; }
+      if(!img.src || !img.src.startsWith('data:image')){ img.src=await qrToDataURL(orderUrl(t),'220x220'); }
+      upsert(t, img.src); await render(); msg.textContent='저장됨';
     }catch(e){ console.warn(e); msg.textContent='저장 실패'; }
-    finally{ working=false; }
+    finally{ busy=false; }
+  }
+  function oneDownload(){
+    const img=document.getElementById('qrv2-preview'); const t=img.dataset.table || document.getElementById('qrv2-table').value.trim();
+    if(!t || !img.src) return;
+    const a=document.createElement('a'); a.href=img.src; a.download=`qr${t}_${stamp()}.png`; document.body.appendChild(a); a.click(); a.remove();
   }
 
-  async function initQrv2(){
-    await loadConfig();
-    document.getElementById('qrv2-generate')?.addEventListener('click', onGenerate);
-    document.getElementById('qrv2-save')?.addEventListener('click', onSave);
+  async function init(){
+    await loadCfg();
+    document.getElementById('qrv2-generate').addEventListener('click', onGen);
+    document.getElementById('qrv2-save').addEventListener('click', onSave);
+    document.getElementById('qrv2-download').addEventListener('click', (e)=>{e.preventDefault(); oneDownload();});
+    document.getElementById('qrv2-clear').addEventListener('click', ()=>{ clearAll(); render(); });
+    document.getElementById('qrv2-preview').addEventListener('click', (e)=>{ e.preventDefault(); oneDownload(); });
     await render();
   }
-  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', initQrv2);
-  else initQrv2();
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
 </script>
 

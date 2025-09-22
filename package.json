@@ -12,6 +12,5 @@
   },
   "engines": {
     "node": "22.x"
-  },
-  "private": true
+  }
 }
