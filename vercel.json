@@ -2,16 +2,24 @@
   "version": 2,
   "routes": [
     {
-      "src": "/api/download-proxy",
-      "dest": "/api/download-proxy.js"
-    },
-    {
-      "src": "^/login$",
-      "dest": "/login.html"
-    },
-    {
       "src": "^/admin-config$",
       "dest": "/api/admin-config.js"
+    },
+    {
+      "src": "^/events/orders$",
+      "dest": "/api/events-orders.js"
+    },
+    {
+      "src": "^/api/(.*)$",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "^/(login|index)\\.html$",
+      "dest": "/public/$1.html"
+    },
+    {
+      "src": "^(?!/api/).*",
+      "dest": "/public/index.html"
     }
   ],
   "rewrites": [
