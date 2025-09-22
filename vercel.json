@@ -1,5 +1,27 @@
 {
-  "cleanUrls": true,
+  "version": 2,
+  "routes": [
+    {
+      "src": "^/admin-config$",
+      "dest": "/api/admin-config.js"
+    },
+    {
+      "src": "^/events/orders$",
+      "dest": "/api/events-orders.js"
+    },
+    {
+      "src": "^/api/(.*)$",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "^/(login|index)\\.html$",
+      "dest": "/public/$1.html"
+    },
+    {
+      "src": "^(?!/api/).*",
+      "dest": "/public/index.html"
+    }
+  ],
   "rewrites": [
     {
       "source": "/admin-config",
@@ -8,6 +30,15 @@
     {
       "source": "/events/orders",
       "destination": "/api/events-orders"
+    },
+    {
+      "source": "/daily-code",
+      "destination": "/api/daily-code"
     }
-  ]
+  ],
+  "functions": {
+    "api/*.js": {
+      "runtime": "nodejs22.x"
+    }
+  }
 }

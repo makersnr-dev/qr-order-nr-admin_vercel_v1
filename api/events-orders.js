@@ -1,50 +1,73 @@
-import http from 'http';
-import https from 'https';
-import { URL } from 'url';
+export const config = { runtime: 'edge' };
 
-export default function handler(req, res) {
+// Edge SSE proxy: pipes upstream SSE to the client without 300s serverless timeout
+async function getApiBase(req) {
   try {
-    const apiBase = process.env.API_BASE;
-    if (!apiBase) {
-      res.statusCode = 500;
-      return res.end('API_BASE is not set');
+    const url = new URL(req.url);
+    const origin = url.origin;
+    const r = await fetch(origin + '/api/admin-config');
+    if (r.ok) {
+      const j = await r.json();
+      if (j && j.apiBase) return j.apiBase;
     }
-    // Target: <API_BASE>/events/orders
-    const target = new URL('/events/orders', apiBase).toString();
+  } catch (_) {}
+  // fallback to env
+  return (process.env.API_BASE || '').trim();
+}
 
-    // Prepare SSE headers
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.setHeader('Vary', 'Origin');
+export default async function handler(req) {
+  try {
+    const apiBase = await getApiBase(req);
+    if (!apiBase) {
+      return new Response('apiBase not configured', { status: 500 });
+    }
+    const upstreamUrl = apiBase.replace(/\/+$/, '') + '/events/orders';
 
-    const mod = target.startsWith('https:') ? https : http;
-    const upstream = mod.request(target, {
-      method: 'GET',
-      headers: { Accept: 'text/event-stream' },
-    }, (up) => {
-      up.on('data', (chunk) => {
-        try { res.write(chunk); } catch (_) {}
-      });
-      up.on('end', () => {
-        try { res.end(); } catch (_) {}
-      });
+    const upstream = await fetch(upstreamUrl, {
+      headers: { 'Accept': 'text/event-stream' }
     });
 
-    upstream.on('error', (err) => {
-      try { res.write(`event: error\ndata: ${JSON.stringify({ message: String(err) })}\n\n`); } catch (_) {}
-      try { res.end(); } catch (_) {}
+    if (!upstream.ok || !upstream.body) {
+      return new Response('Upstream SSE error', { status: upstream.status || 502 });
+    }
+
+    const encoder = new TextEncoder();
+    const reader = upstream.body.getReader();
+
+    const stream = new ReadableStream({
+      start(controller) {
+        // heartbeat every 15s to keep proxies alive
+        const iv = setInterval(() => {
+          try { controller.enqueue(encoder.encode(':hb\n\n')); } catch (_) {}
+        }, 15000);
+
+        (async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              controller.enqueue(value);
+            }
+          } catch (_) {
+            // swallow
+          } finally {
+            clearInterval(iv);
+            try { controller.close(); } catch (_) {}
+          }
+        })();
+      }
     });
 
-    upstream.end();
-
-    req.on('close', () => {
-      try { upstream.destroy(); } catch (_) {}
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        // allow admin UI to connect
+        'Access-Control-Allow-Origin': '*'
+      }
     });
   } catch (e) {
-    res.statusCode = 500;
-    res.end('sse proxy error');
+    return new Response('SSE proxy failed', { status: 502 });
   }
 }
