@@ -28,8 +28,25 @@
 .notify-meta{display:flex;gap:16px;flex-wrap:wrap}
 .notify-close{position:absolute;right:16px;top:12px;cursor:pointer;border:1px solid #345;border-radius:8px;padding:4px 8px}
 
+
+/* Modal + Stack utilities */
+.notify-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:1000}
+.notify-modal.open{display:flex}
+.notify-panel{background:#0e1a26;border:1px solid #234;border-radius:14px;max-width:720px;width:92%;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.notify-actions{display:flex;flex-wrap:wrap;gap:8px}
+.notify-meta{display:flex;flex-wrap:wrap;gap:16px}
+.notify-close{position:absolute;right:16px;top:12px;cursor:pointer;border:1px solid #345;border-radius:8px;padding:4px 8px}
+.stack, .stack .row { display:block; width:100%; }
+.stack > * { display:block; width:100%; margin-top:6px; }
+#staffCalls > div { display:block; }
+
 </style>
 </head><body>
+
+<div id="globalToolbar" style="position:sticky;top:0;z-index:999;background:#0b1724;border-bottom:1px solid #234;padding:8px 10px;display:flex;gap:8px;flex-wrap:wrap">
+  <button class="btn" id="globalNotifyBtn">알림 설정/점검</button>
+</div>
+
 
 
 <div class="notify-modal" id="notifyModal" aria-hidden="true">
@@ -69,7 +86,7 @@
     <div class="tab active" data-tab="orders">주문목록</div>
     <div class="tab" data-tab="qr">QR 배포</div>
     <div class="tab" data-tab="menu">메뉴 관리</div>
-    <div class="tab" data-tab="code">결제 코드<button class="btn" id="openNotifyBtn" style="margin-left:8px">알림 설정/점검</button>/div>
+    <div class="tab" data-tab="code">결제 코드<button class="btn" id="openNotifyBtn_removed" style="margin-left:8px">알림 설정/점검</button>/div>
   </div>
 
   <div id="pane-orders" class="card">
@@ -392,9 +409,6 @@ init();
 </script>
 
 
-
-
-
 <script>
 (function(){
   if (window.__QR_NOTIFY && window.__QR_NOTIFY.initModalDone) return;
@@ -402,15 +416,16 @@ init();
   const NS = window.__QR_NOTIFY;
   NS.initModalDone = true;
 
+  // UI: modal open/close
   function qs(id){ return document.getElementById(id); }
   function openModal(){ const m=qs('notifyModal'); if(m){ m.classList.add('open'); m.setAttribute('aria-hidden','false'); } }
   function closeModal(){ const m=qs('notifyModal'); if(m){ m.classList.remove('open'); m.setAttribute('aria-hidden','true'); } }
-
   document.addEventListener('DOMContentLoaded', ()=>{
     const openBtn = qs('openNotifyBtn'); if(openBtn) openBtn.onclick = openModal;
     const closeBtn = qs('notifyCloseBtn'); if(closeBtn) closeBtn.onclick = closeModal;
   });
 
+  // Status helpers
   NS.userEnabledBeep = NS.userEnabledBeep || false;
   NS.audioCtx = NS.audioCtx || null;
   NS.sseConnected = NS.sseConnected || false;
@@ -426,7 +441,7 @@ init();
     if(extra){ var help = document.getElementById('notifyHelp'); if(help){ help.setAttribute('data-last-error', String(extra)); } }
   };
 
-  // Dedupe guard
+  // Dedupe guard (keep prior logic)
   NS._shouldHandleStaff = function(d){
     try{
       const sig = JSON.stringify({t:d.tableNo||'', r:d.reason||'', at: Math.round((d.at||Date.now())/1000)});
@@ -437,6 +452,7 @@ init();
     }catch(_){ return true; }
   };
 
+  // Audio
   NS.ensureAudio = function(){
     try{
       if(!NS.audioCtx) NS.audioCtx = new (window.AudioContext||window.webkitAudioContext)();
@@ -455,6 +471,7 @@ init();
     }catch(_){}
   };
 
+  // Notifications
   NS.updateNotifPerm = function(){
     try{
       const s=(window.Notification&&Notification.permission)?Notification.permission:'unsupported';
@@ -477,6 +494,7 @@ init();
     }
   };
 
+  // Robust SSE (create on our own + reconnect with backoff)
   NS.startSSE = function(){
     try{
       if (NS.es) { try{ NS.es.close(); }catch(_){ } }
@@ -487,8 +505,10 @@ init();
       NS.setSseStatus(false);
 
       es.onopen = ()=>{ NS.setSseStatus(true); };
-      es.onerror = (e)=>{ NS.setSseStatus(false, 'onerror'); /* reconnect scheduled below */ };
-
+      es.onerror = (e)=>{ 
+        NS.setSseStatus(false, 'onerror');
+        // reconnect will be scheduled below by readyState watcher
+      };
       const prev = es.onmessage;
       es.onmessage = (evt)=>{
         NS.setSseStatus(true);
@@ -509,14 +529,16 @@ init();
         NS._lastMsgAt = Date.now();
       };
 
+      // Heartbeat + reconnect
       if (!NS._hb) {
         NS._hb = setInterval(()=>{
           const ok = NS.es && NS.es.readyState === 1;
           const silentTooLong = (Date.now() - (NS._lastMsgAt||0)) > 60000;
           if (!(ok && !silentTooLong)) {
+            // schedule reconnect with backoff
             if (!NS._reconnecting) {
               NS._reconnecting = true;
-              const delay = Math.min(30000, 1000 * Math.pow(2, Math.min(NS._retries, 5)));
+              const delay = Math.min(30000, 1000 * Math.pow(2, Math.min(NS._retries, 5))); // 1s -> 32s
               setTimeout(()=>{ NS._retries++; NS._reconnecting=false; NS.startSSE(); }, delay);
             }
           }
@@ -528,14 +550,81 @@ init();
     }
   };
 
+  // Wire notify buttons
   document.addEventListener('DOMContentLoaded', function(){
     NS.updateNotifPerm();
     const b1=document.getElementById('btnEnableSound'); if(b1) b1.onclick=()=>{ NS.userEnabledBeep=true; NS.playBeep(); };
     const b2=document.getElementById('btnTestSound'); if(b2) b2.onclick=()=>{ NS.playBeep(); };
     const b3=document.getElementById('btnRequestNotif'); if(b3) b3.onclick=NS.requestNotif;
     const b4=document.getElementById('btnTestNotif'); if(b4) b4.onclick=NS.testNotif;
-    NS.startSSE();
   });
+
+  // Start SSE after DOM ready
+  document.addEventListener('DOMContentLoaded', function(){ NS.startSSE(); });
+})();
+</script>
+
+
+<script>
+(function(){
+  if (window.__QR_NOTIFY && window.__QR_NOTIFY.initGlobalBtn) return;
+  window.__QR_NOTIFY = window.__QR_NOTIFY || {};
+  const NS = window.__QR_NOTIFY;
+  NS.initGlobalBtn = true;
+
+  function qs(id){ return document.getElementById(id); }
+  function openModal(){
+    const m=qs('notifyModal'); 
+    if(m){ m.classList.add('open'); m.setAttribute('aria-hidden','false'); }
+    else { const c=qs('notifyCard'); if(c) c.scrollIntoView({behavior:'smooth'}); }
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    var g=qs('globalNotifyBtn'); if(g) g.onclick = openModal;
+    var x=qs('notifyCloseBtn'); if(x) x.onclick = ()=>{ const m=qs('notifyModal'); if(m){ m.classList.remove('open'); m.setAttribute('aria-hidden','true'); } };
+  });
+
+  // Permission UI minor: reflect current state if available
+  (function(){
+    try{
+      const s=(window.Notification&&Notification.permission)?Notification.permission:'unsupported';
+      const el=document.getElementById('notifPerm'); if(el) el.textContent=s;
+      const btn=document.getElementById('btnRequestNotif'); if(btn){
+        if(s==='granted'){ btn.textContent='브라우저 알림 허용됨'; btn.disabled=true; }
+        else if(s==='denied'){ btn.textContent='브라우저 알림 차단됨'; btn.disabled=true; }
+      }
+    }catch(_){}
+  })();
+
+  // SSE probe using API_BASE if provided
+  NS.getApiBase = function(){
+    try{
+      if (window.API_BASE) return String(window.API_BASE);
+      var meta = document.querySelector('meta[name="api-base"]'); 
+      if (meta && meta.content) return String(meta.content);
+    }catch(_){}
+    return '';
+  };
+  NS.getSseCandidates = function(){
+    const base = NS.getApiBase();
+    const cand = [];
+    if (base) cand.push(base.replace(/\/+$/,'') + '/events/orders');
+    cand.push('/events/orders'); // same-origin fallback
+    return cand;
+  };
+
+  // Lightweight SSE connect if page doesn't provide one already
+  if (!NS.es && !window.es) {
+    try{
+      const list = NS.getSseCandidates();
+      const url = list[0];
+      const es = new EventSource(url);
+      NS.es = es;
+      const st = document.getElementById('sseStatus'); if(st) st.textContent='연결 중...';
+      es.onopen = ()=>{ const st = document.getElementById('sseStatus'); if(st) st.textContent='연결됨'; };
+      es.onerror = ()=>{ const st = document.getElementById('sseStatus'); if(st) st.textContent='끊김'; };
+      es.onmessage = (evt)=>{ const st = document.getElementById('sseStatus'); if(st) st.textContent='연결됨'; };
+    }catch(_){}
+  }
 })();
 </script>
 
