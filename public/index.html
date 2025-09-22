@@ -199,6 +199,116 @@ init();
   // Ask notification permission once
   (function(){ if(window.Notification && Notification.permission==='default'){ Notification.requestPermission().catch(()=>{}); } })();
 
+
+  // --- Reliable Beep via WebAudio (requires user gesture once) ---
+  let userEnabledBeep = false;
+  let audioCtx = null;
+  function ensureAudio(){
+    try{
+      if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      if(audioCtx.state === 'suspended') audioCtx.resume();
+    }catch(e){ console.warn('Audio ctx', e); }
+  }
+  function playBeep(ms=150, freq=880){
+    try{
+      ensureAudio();
+      if(!audioCtx) return;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.connect(g).connect(audioCtx.destination);
+      o.type='sine'; o.frequency.value = freq;
+      g.gain.value = 0.05;
+      o.start();
+      setTimeout(()=>{ try{ o.stop(); }catch(_){ } }, ms);
+    }catch(e){ console.warn('beep failed', e); }
+  }
+
+  // --- Notification helpers ---
+  function updateNotifPerm(){
+    try{
+      const s = (window.Notification && Notification.permission) ? Notification.permission : 'unsupported';
+      const el = document.getElementById('notifPerm'); if(el) el.textContent = s;
+    }catch(_){}
+  }
+  function requestNotif(){
+    try{
+      if(!window.Notification) return alert('이 브라우저는 알림을 지원하지 않습니다.');
+      Notification.requestPermission().then(updateNotifPerm);
+    }catch(_){}
+  }
+  function testNotif(){
+    try{
+      if(window.Notification && Notification.permission==='granted'){
+        new Notification('테스트 알림', { body: '직원 호출 알림이 이렇게 표시됩니다.' });
+      }else{
+        alert('먼저 [브라우저 알림 허용 요청]을 눌러 권한을 허용해주세요.');
+      }
+    }catch(_){}
+  }
+
+  // --- SSE status UI ---
+  let sseConnected = false;
+  function setSseStatus(ok){
+    sseConnected = !!ok;
+    const el = document.getElementById('sseStatus');
+    if(el) el.textContent = ok ? '연결됨' : '끊김';
+  }
+
+  // Wire buttons after DOM ready
+  (function(){
+    updateNotifPerm();
+    const b1=document.getElementById('btnEnableSound'); if(b1) b1.onclick=()=>{ userEnabledBeep=true; playBeep(); };
+    const b2=document.getElementById('btnTestSound'); if(b2) b2.onclick=()=>{ playBeep(); };
+    const b3=document.getElementById('btnRequestNotif'); if(b3) b3.onclick=requestNotif;
+    const b4=document.getElementById('btnTestNotif'); if(b4) b4.onclick=testNotif;
+  })();
+
+  // Extend/override SSE handlers to track status and handle staff calls
+  (function(){
+    // If es already exists, rebind events; else we will set after creation below if possible.
+    try{
+      if(typeof es !== 'undefined' && es){
+        es.onopen = ()=>setSseStatus(true);
+        es.onerror = ()=>setSseStatus(false);
+        // Preserve previous onmessage, but ensure staff_call triggers
+        const prev = es.onmessage;
+        es.onmessage = (evt)=>{
+          setSseStatus(true);
+          try{
+            const data = JSON.parse(evt.data||'{}');
+            if(data && data.type==='staff_call'){ handleStaffCall(data); return; }
+          }catch(e){ /* ignore */ }
+          if(prev) prev(evt);
+        }
+      }
+    }catch(_){}
+  })();
+
+  // Replace/augment handleStaffCall to beep only if user enabled
+  if (typeof handleStaffCall === 'undefined'){
+    function handleStaffCall(d){
+      try{
+        const box = document.getElementById('staffCalls');
+        const time = new Date(d.at||Date.now());
+        const row = document.createElement('div');
+        row.className='staff-call';
+        row.innerHTML = `<b>${time.toLocaleTimeString()}</b> — 테이블 <b>${(d.tableNo||'?')}</b> 직원 호출` + (d.reason? ` <span class="small">(${d.reason})</span>`:'');
+        if(box) box.prepend(row);
+        if(userEnabledBeep) playBeep(150, 880);
+        if (window.Notification && Notification.permission==='granted'){
+          new Notification('직원 호출', { body: `테이블 ${d.tableNo||''} ${d.reason||''}` });
+        }
+      }catch(e){ console.warn('handleStaffCall err', e); }
+    }
+  } else {
+    const _origHandleStaffCall = handleStaffCall;
+    handleStaffCall = function(d){
+      try{
+        _origHandleStaffCall(d);
+        if(userEnabledBeep) playBeep(150, 880);
+      }catch(e){}
+    }
+  }
+
 </script>
-<audio id="beepAudio" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAwF0AAIC7AAACABYAAAABAAgAZGF0YQAAAAA="></audio>
 </body></html>
