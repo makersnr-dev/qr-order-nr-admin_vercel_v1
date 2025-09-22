@@ -40,14 +40,21 @@
 .stack > * { display:block; width:100%; margin-top:6px; }
 #staffCalls > div { display:block; }
 
+
+/* --- Pill Tabs & Badges (screenshot-like) --- */
+.tabs-row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.tab{border:1px solid #2a3a4a;background:#0f1b28;border-radius:9999px;padding:6px 12px;line-height:1}
+.tab:hover{filter:brightness(1.1)}
+.tab.active{background:#102335;border-color:#38506a;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.05)}
+.badge{display:inline-block;background:#11351e;border:1px solid #2f7a43;color:#9be6b2;border-radius:9999px;padding:2px 8px;font-size:12px;vertical-align:middle;margin-left:6px}
+.chips{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.section-card h3 .sub{opacity:.8;font-weight:500;margin-left:6px}
+.input-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+.input-row input[type="text"], .input-row input[type="number"]{min-width:160px}
+.right-actions{margin-left:auto;display:flex;gap:8px}
+
 </style>
 </head><body>
-
-<div id="globalToolbar" style="position:sticky;top:0;z-index:999;background:#0b1724;border-bottom:1px solid #234;padding:8px 10px;display:flex;gap:8px;flex-wrap:wrap">
-  <button class="btn" id="globalNotifyBtn">알림 설정/점검</button>
-</div>
-
-
 
 <div class="notify-modal" id="notifyModal" aria-hidden="true">
   <div class="notify-panel">
@@ -83,15 +90,15 @@
   </div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="orders">주문목록</div>
+    <div class="tab active" data-tab="orders" class="tab">주문목록</div>
     <div class="tab" data-tab="qr">QR 배포</div>
     <div class="tab" data-tab="menu">메뉴 관리</div>
-    <div class="tab" data-tab="code">결제 코드<button class="btn" id="openNotifyBtn_removed" style="margin-left:8px">알림 설정/점검</button>/div>
+    <div class="tab" data-tab="code">결제 코드</button> <button class="btn tab" id="tabNotify">알림 설정/점검</button><button class="btn" id="openNotifyBtn_removed" style="margin-left:8px">알림 설정/점검</button>/div>
   </div>
 
   <div id="pane-orders" class="card">
     <div class="row" style="justify-content:space-between">
-      <div><b>주문목록</b></div>
+      <div><b class="tab">주문목록</b></div>
       <button class="btn" id="exportOrders">엑셀 다운로드</button>
     </div>
     <table id="ordersTbl"><thead><tr><th>시간</th><th>테이블</th><th>항목</th><th>금액</th><th>상태</th></tr></thead><tbody></tbody></table>
@@ -625,6 +632,20 @@ init();
       es.onmessage = (evt)=>{ const st = document.getElementById('sseStatus'); if(st) st.textContent='연결됨'; };
     }catch(_){}
   }
+})();
+</script>
+
+
+<script>
+(function(){
+  if (window.__QR_NOTIFY && window.__QR_NOTIFY.initNotifyTab) return;
+  window.__QR_NOTIFY = window.__QR_NOTIFY || {};
+  window.__QR_NOTIFY.initNotifyTab = true;
+  function qs(id){ return document.getElementById(id); }
+  function openModal(){ const m=qs('notifyModal'); if(m){ m.classList.add('open'); m.setAttribute('aria-hidden','false'); } }
+  document.addEventListener('DOMContentLoaded', function(){
+    const b = qs('tabNotify'); if(b) b.addEventListener('click', openModal);
+  });
 })();
 </script>
 
