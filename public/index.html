@@ -17,6 +17,7 @@
   .pill.ok{background:#0b2a18;border-color:#1f4e32;color:#b3ffcf}
   .pill.warn{background:#2a160b;border-color:#4e331f;color:#ffd9b3}
   .muted{color:var(--muted)} .hidden{display:none}
+.staff-call{padding:8px;border:1px solid #335;border-radius:10px;margin:6px 0}
 </style>
 </head><body>
 <div class="wrap">
@@ -180,5 +181,24 @@ clearBtn.onclick = async ()=>{ if(!TOKEN){ location.href='/login'; return; } con
 copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.clipboard?.writeText(dcCode.value).then(()=> alert('복사되었습니다.')); };
 
 init();
+
+  function handleStaffCall(d){
+    try{
+      const box = document.getElementById('staffCalls');
+      const time = new Date(d.at||Date.now());
+      const row = document.createElement('div');
+      row.className='staff-call';
+      row.innerHTML = `<b>${time.toLocaleTimeString()}</b> — 테이블 <b>${(d.tableNo||'?')}</b> 직원 호출` + (d.reason? ` <span class="small">(${d.reason})</span>`:'');
+      if(box) box.prepend(row);
+      // Beep
+      const a = document.getElementById('beepAudio'); if(a){ a.currentTime=0; a.play().catch(()=>{}); }
+      // Optional: browser notification (if permitted)
+      if (window.Notification && Notification.permission==='granted'){ new Notification('직원 호출', { body: `테이블 ${d.tableNo} - ${d.reason||''}` }); }
+    }catch(e){ console.warn('handleStaffCall err', e); }
+  }
+  // Ask notification permission once
+  (function(){ if(window.Notification && Notification.permission==='default'){ Notification.requestPermission().catch(()=>{}); } })();
+
 </script>
+<audio id="beepAudio" preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAwF0AAIC7AAACABYAAAABAAgAZGF0YQAAAAA="></audio>
 </body></html>
