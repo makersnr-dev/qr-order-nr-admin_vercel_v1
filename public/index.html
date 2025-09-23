@@ -204,10 +204,13 @@ init();
 
 
 
+
+
+
 <script>
 (function(){
-  if (window.__QR_DET && window.__QR_DET.v3) return;
-  window.__QR_DET = { v3:true };
+  if (window.__QR_DET && window.__QR_DET.v4) return;
+  window.__QR_DET = { v4:true };
 
   const KEY='__qr_saved_list';
   const $=(sel,root)=> (root||document).querySelector(sel);
@@ -240,65 +243,35 @@ init();
     cand=$$('input',document).find(vis); return cand||null;
   }
 
-  // ---- Preview handling ----
-  function findExistingPreview(card){
-    // Biggest visible canvas/img inside card (excluding our preview holder)
-    const nodes=$$('canvas, img',card).filter(n=>vis(n) && n.id!=='qrPreviewCanvas' && !n.closest('#qrPreviewDet'));
-    let best=null,score=0;
-    nodes.forEach(n=>{
-      const r=n.getBoundingClientRect(); const area=Math.max(1,r.width*r.height);
-      const ratio=r.width&&r.height?(r.width/r.height):1; const square=1-Math.min(1,Math.abs(1-ratio));
-      const s=area*(0.7+0.3*square);
-      if(s>score){best=n;score=s;}
-    });
-    return best;
-  }
-  function cloneToCanvasFrom(el){
-    try{
-      if(!el) return null;
-      if(el.tagName==='CANVAS'){
-        // Clone pixels
-        const src=el;
-        const cvs=document.createElement('canvas');
-        cvs.width=src.width||src.getBoundingClientRect().width||256;
-        cvs.height=src.height||src.getBoundingClientRect().height||256;
-        const ctx=cvs.getContext('2d'); ctx.drawImage(src,0,0,cvs.width,cvs.height);
-        return cvs;
-      }else if(el.tagName==='IMG'){
-        const cvs=document.createElement('canvas');
-        const w=el.naturalWidth||el.width||256, h=el.naturalHeight||el.height||256;
-        cvs.width=w; cvs.height=h;
-        const ctx=cvs.getContext('2d'); ctx.drawImage(el,0,0,w,h);
-        return cvs;
-      }
-    }catch(e){ console.warn('cloneToCanvasFrom error',e); }
-    return null;
-  }
-  function ensurePreviewUI(card){
+  function ensureUI(card){
     const genBtn=findGenBtn(card);
     // Save button
     let saveBtn=$('#btnQrSaveTop',card);
     if(!saveBtn){
       saveBtn=document.createElement(genBtn&&/^A$/i.test(genBtn.tagName)?'a':'button');
       saveBtn.id='btnQrSaveTop'; saveBtn.className=genBtn?(genBtn.className||'btn'):'btn'; saveBtn.textContent='QR 저장';
-      if(genBtn&&genBtn.parentNode){ const p=genBtn.parentNode; p.insertBefore(saveBtn, genBtn.nextSibling? (genBtn.nextSibling.nextSibling||genBtn.nextSibling): null); }
-      else card.insertBefore(saveBtn, card.firstChild);
+      if(genBtn&&genBtn.parentNode){
+        const p=genBtn.parentNode;
+        p.insertBefore(saveBtn, genBtn.nextSibling ? (genBtn.nextSibling.nextSibling || genBtn.nextSibling) : null);
+      } else {
+        card.insertBefore(saveBtn, card.firstChild);
+      }
     }
-    // Preview holder
+    // Preview holder + canvas (reduced size)
     let prevWrap=$('#qrPreviewDet',card);
     if(!prevWrap){
       prevWrap=document.createElement('div'); prevWrap.id='qrPreviewDet'; prevWrap.style.marginTop='8px';
       if(genBtn&&genBtn.parentNode) genBtn.parentNode.parentNode.insertBefore(prevWrap, genBtn.parentNode.nextSibling);
       else card.appendChild(prevWrap);
     }
-    // Ensure canvas inside preview holder to control size
     let prevCanvas=$('#qrPreviewCanvas', prevWrap);
     if(!prevCanvas){
       prevCanvas=document.createElement('canvas'); prevCanvas.id='qrPreviewCanvas';
-      prevCanvas.style.maxWidth='420px'; prevCanvas.style.width='100%'; prevCanvas.style.borderRadius='8px';
+      prevCanvas.style.maxWidth='320px'; prevCanvas.style.width='100%'; prevCanvas.style.borderRadius='8px';
       prevWrap.appendChild(prevCanvas);
     }
-    // Saved grid
+
+    // Saved grid (once)
     let title=$('h4[data-det-saved]',card);
     let grid=$('#qrSavedList',card);
     if(!title){ title=document.createElement('h4'); title.dataset.detSaved='1'; title.textContent='저장된 QR'; title.style.margin='12px 0 4px'; prevWrap.after(title); }
@@ -306,35 +279,61 @@ init();
 
     // Clean legacy bits
     $$('#qrManager, #qrMgrRow, #btnQrGen_mgr, #btnQrClear_mgr',card).forEach(n=>n.remove());
-    return {genBtn, saveBtn, prevCanvas, grid};
+    return {genBtn, saveBtn, prevCanvas, grid, prevWrap};
   }
 
-  function drawIntoCanvas(targetCanvas, sourceEl, fallbackText){
+  function findExternalPreview(card){
+    const nodes=$$('canvas, img',card).filter(n=>vis(n) && n.id!=='qrPreviewCanvas' && !n.closest('#qrPreviewDet'));
+    // choose the largest near-square element
+    let best=null,score=0;
+    nodes.forEach(n=>{
+      const r=n.getBoundingClientRect(); const area=Math.max(1,r.width*r.height);
+      const ratio=r.width&&r.height?(r.width/r.height):1; const square=1-Math.min(1,Math.abs(1-ratio));
+      const s=area*(0.7+0.3*square);
+      if (s>score){ best=n; score=s; }
+    });
+    return best;
+  }
+
+  function drawIntoCanvas(targetCanvas, sourceEl, textFallback){
     const ctx=targetCanvas.getContext('2d');
-    // Decide size
     const rect=targetCanvas.getBoundingClientRect();
-    const size=Math.max(240, Math.min(480, Math.round(rect.width||320)));
+    const size=Math.max(240, Math.min(360, Math.round(rect.width||320)));
     targetCanvas.width=size; targetCanvas.height=size;
-    // Prefer existing preview
-    let srcCanvas=cloneToCanvasFrom(sourceEl);
-    if(srcCanvas){
-      // draw with contain fit
-      ctx.fillStyle='#fff'; ctx.fillRect(0,0,size,size);
-      const w=srcCanvas.width, h=srcCanvas.height;
-      const scale=Math.min(size/w, size/h);
-      const dw=Math.round(w*scale), dh=Math.round(h*scale);
-      ctx.drawImage(srcCanvas, Math.round((size-dw)/2), Math.round((size-dh)/2), dw, dh);
-      return targetCanvas;
+
+    function clone(el){
+      if(!el) return null;
+      if (el.tagName==='CANVAS'){
+        const cvs=document.createElement('canvas'); cvs.width=el.width||el.getBoundingClientRect().width||256; cvs.height=el.height||el.getBoundingClientRect().height||256;
+        cvs.getContext('2d').drawImage(el,0,0,cvs.width,cvs.height); return cvs;
+      } else if (el.tagName==='IMG'){
+        const cvs=document.createElement('canvas'); const w=el.naturalWidth||el.width||256, h=el.naturalHeight||el.height||256;
+        cvs.width=w; cvs.height=h; cvs.getContext('2d').drawImage(el,0,0,w,h); return cvs;
+      }
+      return null;
     }
-    // fallback: generate with SimpleQR
-    try{
-      const tmp = (window.SimpleQR && fallbackText) ? window.SimpleQR.make(String(fallbackText), size) : null;
-      if (tmp){ ctx.fillStyle='#fff'; ctx.fillRect(0,0,size,size); ctx.drawImage(tmp,0,0,size,size); return targetCanvas; }
-    }catch(e){ console.warn('SimpleQR fallback failed', e); }
-    // ultimate fallback: white canvas with small mark
+
+    const src=clone(sourceEl);
     ctx.fillStyle='#fff'; ctx.fillRect(0,0,size,size);
-    ctx.fillStyle='#000'; ctx.fillRect(8,8,8,8);
-    return targetCanvas;
+    if (src){
+      const w=src.width, h=src.height; const sc=Math.min(size/w, size/h);
+      const dw=Math.round(w*sc), dh=Math.round(h*sc);
+      ctx.drawImage(src, Math.round((size-dw)/2), Math.round((size-dh)/2), dw, dh);
+      return true;
+    }
+    // fallback: SimpleQR
+    try{
+      if (window.SimpleQR && textFallback){
+        const tmp=window.SimpleQR.make(String(textFallback), size); ctx.drawImage(tmp,0,0,size,size); return true;
+      }
+    }catch(_){}
+    // final: keep white
+    return false;
+  }
+
+  function hideExternalPreview(card){
+    const el=findExternalPreview(card);
+    if (el){ el.style.display='none'; }
   }
 
   function getList(){ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(_){ return []; } }
@@ -360,43 +359,46 @@ init();
 
   function main(){
     const card=findQrCard();
-    const ui=ensurePreviewUI(card);
+    const ui=ensureUI(card);
 
-    // When "QR 생성" clicked, mirror the existing preview (if any) into our large canvas
+    // MutationObserver: whenever a new canvas/img appears (real QR), mirror it to our big canvas and hide the source
+    let scheduleTimer=null;
+    function scheduleUpdate(){
+      clearTimeout(scheduleTimer);
+      scheduleTimer=setTimeout(()=>{
+        const input=nearestInputTo(ui.genBtn, card);
+        const txt=(input&&input.value||'').trim();
+        const ext=findExternalPreview(card);
+        drawIntoCanvas(ui.prevCanvas, ext, txt);
+        if (ext) hideExternalPreview(card);
+      }, 80);
+    }
+    const mo=new MutationObserver(scheduleUpdate);
+    mo.observe(card, {childList:true, subtree:true, attributes:false});
+
     if (ui.genBtn){
-      ui.genBtn.addEventListener('click', ()=>{
-        setTimeout(()=>{
-          const input=nearestInputTo(ui.genBtn, card);
-          const txt=(input&&input.value||'').trim();
-          const ext=findExistingPreview(card);
-          drawIntoCanvas(ui.prevCanvas, ext, txt);
-        }, 50);
-      });
+      ui.genBtn.addEventListener('click', scheduleUpdate);
     }
 
-    // Save: always mirror current external preview into our canvas first, then save that dataURL
     ui.saveBtn.addEventListener('click', ()=>{
       const input=nearestInputTo(ui.genBtn, card);
       const txt=(input&&input.value||'').trim();
       if(!txt){ alert('테이블 번호를 입력하세요'); return; }
-      const ext=findExistingPreview(card);
-      drawIntoCanvas(ui.prevCanvas, ext, txt);
-      const dataUrl=ui.prevCanvas.toDataURL('image/png');
-      const list=getList();
-      const idx=list.findIndex(x=> String(x.table||'')===String(txt));
-      const item={table:String(txt), dataUrl, ts:Date.now()};
-      if(idx>=0) list[idx]=item; else list.push(item);
-      setList(list);
-      renderGrid(ui.grid);
+      scheduleUpdate();
+      setTimeout(()=>{
+        const dataUrl=ui.prevCanvas.toDataURL('image/png');
+        const list=getList();
+        const idx=list.findIndex(x=> String(x.table||'')===String(txt));
+        const item={table:String(txt), dataUrl, ts:Date.now()};
+        if(idx>=0) list[idx]=item; else list.push(item);
+        setList(list);
+        renderGrid(ui.grid);
+      }, 120);
     });
 
+    // First mount: try to mirror existing preview if already present
+    scheduleUpdate();
     renderGrid(ui.grid);
-
-    // 초기 한 번도 "생성"을 안 눌렀을 때, 기존 미리보기가 있었으면 복제해서 보여주기
-    setTimeout(()=>{
-      const ext=findExistingPreview(card);
-      if(ext) drawIntoCanvas(ui.prevCanvas, ext, '');
-    }, 200);
   }
   document.addEventListener('DOMContentLoaded', main);
 })();
