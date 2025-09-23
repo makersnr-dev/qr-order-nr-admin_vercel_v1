@@ -531,162 +531,88 @@ init();
 
 
 
+
+
+
 <script>
 (function(){
-  if (window.__QR_QRSAVE && window.__QR_QRSAVE.v2) return;
-  window.__QR_QRSAVE = { v2:true };
+  // Cleanup helper
+  if (window.__QR_QRCLEAN && window.__QR_QRCLEAN.v1) return;
+  window.__QR_QRCLEAN = { v1:true };
 
-  const KEY = '__qr_saved_list';
   function visible(el){ return el && el.offsetParent !== null; }
-  function qs(id){ return document.getElementById(id); }
   function $all(root, sel){ return Array.from((root||document).querySelectorAll(sel)); }
 
   function findQrSection(){
     const headings = $all(document, 'h1,h2,h3,h4');
-    // Prefer a heading that has "QR 배포" or "QR 생성"
     let h = headings.find(el => /QR\s*(배포|생성)/i.test(el.textContent||''));
     if(!h) h = headings.find(el => /QR/i.test(el.textContent||''));
     const card = h ? (h.closest('.card') || h.parentElement) : null;
     return card || document.body;
   }
-
-  function getGenBtn(container){
-    const btns = $all(container, 'button, input[type=button], a');
-    // exact match first
-    let b = btns.find(b => ((b.textContent||b.value||'').trim() === 'QR 생성'));
-    if (!b) b = btns.find(b => /QR\s*생성/i.test((b.textContent||b.value||'')));
-    if (!b) b = btns.find(b => /생성|generate|create/i.test((b.textContent||b.value||'')));
-    return b || null;
-  }
-
-  function getTableInput(container, genBtn){
-    // 1) immediate previous sibling of generate button
-    if (genBtn){
-      let sib = genBtn.previousElementSibling;
-      if (sib && /INPUT/i.test(sib.tagName) && visible(sib)) return sib;
-      // scan within same parent backward
-      const siblings = Array.from(genBtn.parentNode ? genBtn.parentNode.children : []);
-      for (let i=siblings.indexOf(genBtn)-1; i>=0; i--){
-        const el = siblings[i];
-        if (/INPUT/i.test(el.tagName) && visible(el)) return el;
-      }
-    }
-    // 2) labeled or placeholder contains '테이블'
-    let cand = $all(container, 'input,textarea').find(el=>{
-      const ph=(el.getAttribute('placeholder')||'')+(el.getAttribute('aria-label')||'');
-      return visible(el) && /테이블|table/i.test(ph);
-    });
-    if (cand) return cand;
-    // 3) input[type=number] visible
-    cand = $all(container, 'input[type=number]').find(visible);
-    if (cand) return cand;
-    // 4) any visible text input in container
-    cand = $all(container, 'input[type=text]').find(visible);
-    if (cand) return cand;
-    // 5) last resort: any visible input on page
-    cand = $all(document, 'input').find(visible);
-    return cand || null;
-  }
-
   function getPreview(container){
-    // Prefer the largest square-ish canvas/img inside the container
     const nodes = $all(container, 'canvas, img').filter(visible);
     let best=null, bestScore=0;
     nodes.forEach(n=>{
       const r = n.getBoundingClientRect();
       const area = Math.max(1, r.width*r.height);
       const ratio = r.width && r.height ? (r.width/r.height) : 1;
-      const square = 1 - Math.min(1, Math.abs(1 - ratio)); // closer to square -> higher
+      const square = 1 - Math.min(1, Math.abs(1 - ratio));
       const score = area * (0.7 + 0.3*square);
       if (score > bestScore){ best = n; bestScore = score; }
     });
     return best || null;
   }
 
-  function ensureSaveButton(container, genBtn){
-    let saveBtn = container.querySelector('#btnQrSaveTop');
-    if (saveBtn) return saveBtn;
-    saveBtn = document.createElement(genBtn && genBtn.tagName==='A' ? 'a' : 'button');
-    saveBtn.id = 'btnQrSaveTop';
-    saveBtn.className = genBtn ? (genBtn.className||'btn') : 'btn';
-    saveBtn.textContent = 'QR 저장';
-    if (genBtn && genBtn.parentNode){
-      if (genBtn.nextSibling) genBtn.parentNode.insertBefore(saveBtn, genBtn.nextSibling.nextSibling || genBtn.nextSibling);
-      else genBtn.parentNode.appendChild(saveBtn);
-    } else {
-      container.insertBefore(saveBtn, container.firstChild);
-    }
-    return saveBtn;
-  }
-
-  function ensureSavedGrid(container){
-    let grid = qs('qrSavedList');
-    if (!grid){
-      const title = document.createElement('h4'); title.style.margin='12px 0 4px'; title.textContent='저장된 QR';
-      grid = document.createElement('div'); grid.id='qrSavedList'; grid.className='qr-grid';
-      // place right after the preview if possible
-      const prev = getPreview(container);
-      if (prev && prev.parentNode){
-        prev.parentNode.parentNode.insertBefore(title, prev.parentNode.nextSibling);
-        prev.parentNode.parentNode.insertBefore(grid, title.nextSibling);
-      } else {
-        container.appendChild(title); container.appendChild(grid);
-      }
-    }
-    return grid;
-  }
-
-  function renderSaved(){
-    const grid = qs('qrSavedList'); if(!grid) return;
-    let list; try{ list = JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(_){ list=[]; }
-    if(!Array.isArray(list)) list=[];
-    if(list.length===0){
-      grid.innerHTML = '<div class="small" style="opacity:.7">저장된 QR이 없습니다. 상단에서 QR 생성 후 [QR 저장]을 눌러 추가하세요.</div>';
-      return;
-    }
-    grid.innerHTML = '';
-    list.forEach((it,idx)=>{
-      const card = document.createElement('div'); card.className='qr-card';
-      const img = document.createElement('img'); img.src = it.dataUrl; img.alt = 'QR '+(it.table||'');
-      const meta = document.createElement('div'); meta.className='qr-meta'; meta.textContent = '테이블 ' + (it.table||'');
-      const acts = document.createElement('div'); acts.className='qr-actions';
-      const btnDl = document.createElement('button'); btnDl.className='btn'; btnDl.textContent='다운로드';
-      btnDl.onclick = ()=>{ const a=document.createElement('a'); a.href=it.dataUrl; a.download='qr_table_'+(it.table||idx)+'.png'; a.click(); };
-      const btnDel = document.createElement('button'); btnDel.className='btn'; btnDel.textContent='삭제';
-      btnDel.onclick = ()=>{ const l=list.filter((_,i)=>i!==idx); localStorage.setItem(KEY, JSON.stringify(l)); renderSaved(); };
-      acts.appendChild(btnDl); acts.appendChild(btnDel);
-      card.appendChild(img); card.appendChild(meta); card.appendChild(acts);
-      grid.appendChild(card);
-    });
-  }
-
-  function saveFromCurrent(container, inputEl){
-    const txt = String(inputEl ? (inputEl.value||'') : '').trim();
-    if(!txt){ alert('테이블 번호를 입력하세요'); return; }
+  function ensureSavedGridAfterPreview(container){
+    let grid = document.getElementById('qrSavedList');
+    let title = document.querySelector('h4[data-qr-saved-title]');
     const prev = getPreview(container);
-    let dataUrl=null;
-    if (prev && prev.toDataURL) dataUrl = prev.toDataURL('image/png');
-    else if (prev && prev.tagName==='IMG') dataUrl = prev.src;
-    if (!dataUrl){ alert('QR 미리보기를 먼저 생성하세요.'); return; }
-    let list; try{ list = JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(_){ list=[]; }
-    if(!Array.isArray(list)) list=[];
-    const idx = list.findIndex(x=> String(x.table||'')===String(txt));
-    const item = {table:String(txt), dataUrl:dataUrl, ts:Date.now()};
-    if (idx>=0) list[idx]=item; else list.push(item);
-    localStorage.setItem(KEY, JSON.stringify(list));
-    renderSaved();
+
+    if (!grid){
+      grid = document.createElement('div'); grid.id='qrSavedList'; grid.className='qr-grid';
+    }
+    if (!title){
+      title = document.createElement('h4'); title.textContent='저장된 QR'; title.dataset.qrSavedTitle='1'; title.style.margin='12px 0 4px';
+    }
+    if (prev){
+      // Place immediately after preview element
+      if (prev.nextSibling){
+        prev.parentNode.insertBefore(title, prev.nextSibling);
+        title.parentNode.insertBefore(grid, title.nextSibling);
+      } else {
+        prev.parentNode.appendChild(title);
+        prev.parentNode.appendChild(grid);
+      }
+    } else {
+      // fallback: append in container
+      container.appendChild(title);
+      container.appendChild(grid);
+    }
+  }
+
+  function removeBottomControls(container){
+    const prev = getPreview(container);
+    const badTexts = ['저장', '전체 삭제'];
+    // Find buttons below preview that are not our top "QR 저장" (id=btnQrSaveTop)
+    const buttons = $all(container, 'button, a').filter(b=>{
+      const t=(b.textContent||b.value||'').trim();
+      if (b.id === 'btnQrSaveTop') return false;
+      // only elements below the preview in the DOM tree order
+      if (prev && prev.compareDocumentPosition) {
+        const pos = prev.compareDocumentPosition(b);
+        const isFollowing = !!(pos & Node.DOCUMENT_POSITION_FOLLOWING);
+        if (!isFollowing) return false;
+      }
+      return badTexts.includes(t);
+    });
+    buttons.forEach(b=>{ b.remove(); });
   }
 
   document.addEventListener('DOMContentLoaded', function(){
     const container = findQrSection();
-    const genBtn = getGenBtn(container);
-    const inputEl = getTableInput(container, genBtn);
-    const saveBtn = ensureSaveButton(container, genBtn);
-    ensureSavedGrid(container);
-    if (saveBtn) saveBtn.addEventListener('click', function(){ saveFromCurrent(container, inputEl); });
-    // remove any old under-image manager
-    const oldMgr = container.querySelector('#qrManager'); if (oldMgr) oldMgr.remove();
-    renderSaved();
+    try{ ensureSavedGridAfterPreview(container); }catch(_) {}
+    try{ removeBottomControls(container); }catch(_) {}
   });
 })();
 </script>
