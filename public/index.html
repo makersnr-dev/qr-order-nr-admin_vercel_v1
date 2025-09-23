@@ -44,6 +44,15 @@
 .qr-actions{display:flex;gap:8px;justify-content:center;margin-top:6px}
 .qr-actions .btn{padding:4px 8px;border-radius:10px}
 
+
+/* --- QR 저장 그리드 (top-save) --- */
+.qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:8px}
+.qr-card{background:#0e1a26;border:1px solid #234;border-radius:12px;padding:10px;text-align:center}
+.qr-card img{width:100%;height:auto;image-rendering:pixelated}
+.qr-meta{margin-top:6px;font-weight:600}
+.qr-actions{display:flex;gap:8px;justify-content:center;margin-top:6px}
+.qr-actions .btn{padding:4px 8px;border-radius:10px}
+
 </style>
 </head><body>
 
@@ -513,6 +522,98 @@ init();
     if (clearBtn) clearBtn.onclick = function(){
       if(confirm('저장된 QR을 모두 삭제할까요?')){ setList([]); renderSaved(); }
     };
+    renderSaved();
+  });
+})();
+</script>
+
+
+<script>
+(function(){
+  if (window.__QR_QRSAVE && window.__QR_QRSAVE.init) return;
+  window.__QR_QRSAVE = { init:true };
+
+  const KEY = '__qr_saved_list';
+  function qs(id){ return document.getElementById(id); }
+  function getList(){ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(_){ return []; } }
+  function setList(arr){ localStorage.setItem(KEY, JSON.stringify(arr)); }
+  function renderSaved(){
+    const box = qs('qrSavedList'); if(!box) return;
+    const list = getList();
+    if(list.length===0){ box.innerHTML = '<div class="small" style="opacity:.7">저장된 QR이 없습니다. 상단에서 QR 생성 후 [QR 저장]을 눌러 추가하세요.</div>'; return; }
+    box.innerHTML = '';
+    list.forEach((it,idx)=>{
+      const card = document.createElement('div'); card.className='qr-card';
+      const img = document.createElement('img'); img.src = it.dataUrl; img.alt = 'QR '+(it.table||'');
+      const meta = document.createElement('div'); meta.className='qr-meta'; meta.textContent = '테이블 ' + (it.table||'');
+      const acts = document.createElement('div'); acts.className='qr-actions';
+      const btnDl = document.createElement('button'); btnDl.className='btn'; btnDl.textContent='다운로드';
+      btnDl.onclick = ()=>{ const a=document.createElement('a'); a.href=it.dataUrl; a.download='qr_table_'+(it.table||idx)+'.png'; a.click(); };
+      const btnDel = document.createElement('button'); btnDel.className='btn'; btnDel.textContent='삭제';
+      btnDel.onclick = ()=>{ const l=getList().filter((_,i)=>i!==idx); setList(l); renderSaved(); };
+      acts.appendChild(btnDl); acts.appendChild(btnDel);
+      card.appendChild(img); card.appendChild(meta); card.appendChild(acts);
+      box.appendChild(card);
+    });
+  }
+  function findQrSection(){
+    const headings = Array.from(document.querySelectorAll('h1,h2,h3,h4'));
+    const h = headings.find(el => /QR\s*(배포|생성)/i.test(el.textContent||''));
+    if(!h) return document.body;
+    return h.closest('.card') || h.parentElement || document.body;
+  }
+  function getTableInput(container){
+    const candidates = Array.from(container.querySelectorAll('#qrTableNo, #qrText, #qrInput, input[name=qr], input[type=number], input[type=text]'));
+    return candidates.find(el => el.offsetParent !== null) || null;
+  }
+  function getPreview(container){
+    const el = container.querySelector('canvas, img');
+    return el || null;
+  }
+  function getGenBtn(container){
+    const btns = Array.from(container.querySelectorAll('button, input[type=button], a'));
+    let b = btns.find(b => (b.textContent||b.value||'').trim() === 'QR 생성');
+    if (!b) b = btns.find(b => /생성|generate|create/i.test((b.textContent||b.value||'')));
+    return b || null;
+  }
+  function ensureSaveButton(container, genBtn){
+    let saveBtn = container.querySelector('#btnQrSaveTop');
+    if (saveBtn) return saveBtn;
+    saveBtn = document.createElement(genBtn && genBtn.tagName==='A' ? 'a' : 'button');
+    saveBtn.id = 'btnQrSaveTop';
+    saveBtn.className = genBtn ? (genBtn.className||'btn') : 'btn';
+    saveBtn.textContent = 'QR 저장';
+    if (genBtn && genBtn.nextSibling){
+      genBtn.parentNode.insertBefore(saveBtn, genBtn.nextSibling.nextSibling || genBtn.nextSibling);
+    } else if (genBtn && genBtn.parentNode){
+      genBtn.parentNode.appendChild(saveBtn);
+    } else {
+      container.insertBefore(saveBtn, container.firstChild);
+    }
+    return saveBtn;
+  }
+  function saveFromCurrent(){
+    const container = findQrSection();
+    const input = getTableInput(container);
+    const txt = String(input ? (input.value||'') : '').trim();
+    if(!txt){ alert('테이블 번호를 입력하세요'); return; }
+    const prev = getPreview(container);
+    let dataUrl = null;
+    if (prev && prev.toDataURL) dataUrl = prev.toDataURL('image/png');
+    else if (prev && prev.tagName==='IMG') dataUrl = prev.src;
+    if (!dataUrl){ alert('QR 미리보기를 먼저 생성하세요.'); return; }
+    const l = getList();
+    const idx = l.findIndex(x=> String(x.table||'')===String(txt));
+    const item = {table:String(txt), dataUrl:dataUrl, ts:Date.now()};
+    if (idx>=0) l[idx]=item; else l.push(item);
+    setList(l); renderSaved();
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    const container = findQrSection();
+    const genBtn = getGenBtn(container);
+    const saveBtn = ensureSaveButton(container, genBtn);
+    if (saveBtn) saveBtn.addEventListener('click', saveFromCurrent);
+    const oldMgr = container.querySelector('#qrManager'); if (oldMgr) oldMgr.remove();
     renderSaved();
   });
 })();
