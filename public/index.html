@@ -207,10 +207,13 @@ init();
 
 
 
+
+
+
 <script>
 (function(){
-  if (window.__QR_DET && window.__QR_DET.v4) return;
-  window.__QR_DET = { v4:true };
+  if (window.__QR_DET && window.__QR_DET.v5) return;
+  window.__QR_DET = { v5:true };
 
   const KEY='__qr_saved_list';
   const $=(sel,root)=> (root||document).querySelector(sel);
@@ -257,34 +260,26 @@ init();
         card.insertBefore(saveBtn, card.firstChild);
       }
     }
-    // Preview holder + canvas (reduced size)
+    // Preview wrapper (no canvas yet -> avoid white box)
     let prevWrap=$('#qrPreviewDet',card);
     if(!prevWrap){
       prevWrap=document.createElement('div'); prevWrap.id='qrPreviewDet'; prevWrap.style.marginTop='8px';
       if(genBtn&&genBtn.parentNode) genBtn.parentNode.parentNode.insertBefore(prevWrap, genBtn.parentNode.nextSibling);
       else card.appendChild(prevWrap);
     }
-    let prevCanvas=$('#qrPreviewCanvas', prevWrap);
-    if(!prevCanvas){
-      prevCanvas=document.createElement('canvas'); prevCanvas.id='qrPreviewCanvas';
-      prevCanvas.style.maxWidth='320px'; prevCanvas.style.width='100%'; prevCanvas.style.borderRadius='8px';
-      prevWrap.appendChild(prevCanvas);
-    }
-
     // Saved grid (once)
     let title=$('h4[data-det-saved]',card);
     let grid=$('#qrSavedList',card);
     if(!title){ title=document.createElement('h4'); title.dataset.detSaved='1'; title.textContent='저장된 QR'; title.style.margin='12px 0 4px'; prevWrap.after(title); }
     if(!grid){ grid=document.createElement('div'); grid.id='qrSavedList'; grid.className='qr-grid'; title.after(grid); }
-
     // Clean legacy bits
     $$('#qrManager, #qrMgrRow, #btnQrGen_mgr, #btnQrClear_mgr',card).forEach(n=>n.remove());
-    return {genBtn, saveBtn, prevCanvas, grid, prevWrap};
+    return {genBtn, saveBtn, prevWrap, grid};
   }
 
   function findExternalPreview(card){
-    const nodes=$$('canvas, img',card).filter(n=>vis(n) && n.id!=='qrPreviewCanvas' && !n.closest('#qrPreviewDet'));
-    // choose the largest near-square element
+    const nodes=$$('canvas, img',card).filter(n=>vis(n) && !n.closest('#qrPreviewDet'));
+    // pick largest near-square
     let best=null,score=0;
     nodes.forEach(n=>{
       const r=n.getBoundingClientRect(); const area=Math.max(1,r.width*r.height);
@@ -295,11 +290,24 @@ init();
     return best;
   }
 
+  function ensurePreviewCanvas(prevWrap){
+    let canvas = $('#qrPreviewCanvas', prevWrap);
+    if (!canvas){
+      canvas = document.createElement('canvas'); canvas.id='qrPreviewCanvas';
+      canvas.style.maxWidth='256px'; canvas.style.width='100%'; canvas.style.borderRadius='8px';
+      canvas.style.display='none'; // hidden until we draw a real QR
+      prevWrap.appendChild(canvas);
+    }
+    return canvas;
+  }
+
   function drawIntoCanvas(targetCanvas, sourceEl, textFallback){
+    if (!sourceEl && !(window.SimpleQR && textFallback)) return false;
     const ctx=targetCanvas.getContext('2d');
     const rect=targetCanvas.getBoundingClientRect();
-    const size=Math.max(240, Math.min(360, Math.round(rect.width||320)));
+    const size=Math.max(200, Math.min(320, Math.round(rect.width||256)));
     targetCanvas.width=size; targetCanvas.height=size;
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,size,size);
 
     function clone(el){
       if(!el) return null;
@@ -312,28 +320,17 @@ init();
       }
       return null;
     }
-
-    const src=clone(sourceEl);
-    ctx.fillStyle='#fff'; ctx.fillRect(0,0,size,size);
-    if (src){
-      const w=src.width, h=src.height; const sc=Math.min(size/w, size/h);
-      const dw=Math.round(w*sc), dh=Math.round(h*sc);
-      ctx.drawImage(src, Math.round((size-dw)/2), Math.round((size-dh)/2), dw, dh);
-      return true;
+    let src=clone(sourceEl);
+    if (!src && window.SimpleQR && textFallback){
+      try{ src = window.SimpleQR.make(String(textFallback), size); }catch(_){}
     }
-    // fallback: SimpleQR
-    try{
-      if (window.SimpleQR && textFallback){
-        const tmp=window.SimpleQR.make(String(textFallback), size); ctx.drawImage(tmp,0,0,size,size); return true;
-      }
-    }catch(_){}
-    // final: keep white
-    return false;
-  }
+    if (!src) return false;
 
-  function hideExternalPreview(card){
-    const el=findExternalPreview(card);
-    if (el){ el.style.display='none'; }
+    const w=src.width, h=src.height; const sc=Math.min(size/w, size/h);
+    const dw=Math.round(w*sc), dh=Math.round(h*sc);
+    ctx.drawImage(src, Math.round((size-dw)/2), Math.round((size-dh)/2), dw, dh);
+    targetCanvas.style.display='block'; // show only when drawn
+    return true;
   }
 
   function getList(){ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(_){ return []; } }
@@ -360,33 +357,41 @@ init();
   function main(){
     const card=findQrCard();
     const ui=ensureUI(card);
+    const canvas=ensurePreviewCanvas(ui.prevWrap);
 
-    // MutationObserver: whenever a new canvas/img appears (real QR), mirror it to our big canvas and hide the source
-    let scheduleTimer=null;
-    function scheduleUpdate(){
-      clearTimeout(scheduleTimer);
-      scheduleTimer=setTimeout(()=>{
-        const input=nearestInputTo(ui.genBtn, card);
+    // Observe changes and mirror real QR into our (initially hidden) canvas
+    let timer=null;
+    function schedule(){
+      clearTimeout(timer);
+      timer=setTimeout(()=>{
+        const input=nearestInputTo(findGenBtn(card), card);
         const txt=(input&&input.value||'').trim();
         const ext=findExternalPreview(card);
-        drawIntoCanvas(ui.prevCanvas, ext, txt);
-        if (ext) hideExternalPreview(card);
-      }, 80);
+        const ok=drawIntoCanvas(canvas, ext, txt);
+        if (ok && ext) ext.style.display='none'; // hide original only after successful mirror
+      }, 60);
     }
-    const mo=new MutationObserver(scheduleUpdate);
-    mo.observe(card, {childList:true, subtree:true, attributes:false});
+    const mo=new MutationObserver(schedule);
+    mo.observe(card, {childList:true, subtree:true});
 
-    if (ui.genBtn){
-      ui.genBtn.addEventListener('click', scheduleUpdate);
-    }
+    const genBtn=findGenBtn(card);
+    if (genBtn) genBtn.addEventListener('click', schedule);
 
-    ui.saveBtn.addEventListener('click', ()=>{
-      const input=nearestInputTo(ui.genBtn, card);
+    $('#btnQrSaveTop', card).addEventListener('click', ()=>{
+      const input=nearestInputTo(genBtn, card);
       const txt=(input&&input.value||'').trim();
       if(!txt){ alert('테이블 번호를 입력하세요'); return; }
-      scheduleUpdate();
+      schedule();
       setTimeout(()=>{
-        const dataUrl=ui.prevCanvas.toDataURL('image/png');
+        // if canvas still hidden, try direct capture from the external preview
+        if (canvas.style.display==='none'){
+          const ext=findExternalPreview(card);
+          if (ext){
+            // draw once to canvas so dataURL is not white
+            drawIntoCanvas(canvas, ext, txt);
+          }
+        }
+        const dataUrl=canvas.toDataURL('image/png');
         const list=getList();
         const idx=list.findIndex(x=> String(x.table||'')===String(txt));
         const item={table:String(txt), dataUrl, ts:Date.now()};
@@ -396,8 +401,7 @@ init();
       }, 120);
     });
 
-    // First mount: try to mirror existing preview if already present
-    scheduleUpdate();
+    // Initial try: do not show canvas until a QR truly exists
     renderGrid(ui.grid);
   }
   document.addEventListener('DOMContentLoaded', main);
