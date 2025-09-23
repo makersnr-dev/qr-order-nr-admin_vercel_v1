@@ -198,113 +198,163 @@ init();
 </script>
 
 
+
+
+
 <script>
 (function(){
-  if (window.__QR_DET && window.__QR_DET.v1) return;
-  window.__QR_DET = { v1:true };
+  if (window.__QR_DET && window.__QR_DET.v2) return;
+  window.__QR_DET = { v2:true };
 
   const KEY = '__qr_saved_list';
-  function qs(sel, root){ return (root||document).querySelector(sel); }
-  function qsa(sel, root){ return Array.from((root||document).querySelectorAll(sel)); }
-  function visible(el){ return el && el.offsetParent !== null; }
+  const $ = (sel, root)=> (root||document).querySelector(sel);
+  const $$= (sel, root)=> Array.from((root||document).querySelectorAll(sel));
+  const vis = el => el && el.offsetParent !== null && !el.disabled;
 
   function findQrCard(){
-    const heads = qsa('h1,h2,h3');
+    const heads = $$('h1,h2,h3,h4');
     let h = heads.find(el => /QR\s*배포/.test(el.textContent||'')) || heads.find(el => /QR\s*생성/.test(el.textContent||''));
-    const card = h ? (h.closest('.card') || h.parentElement) : null;
-    return card || document.body;
+    return (h && (h.closest('.card') || h.parentElement)) || document.body;
   }
 
-  function ensureControls(card){
-    const input = qsa('input[placeholder*="테이블"]', card).find(visible)
-               || qsa('input[type=number]', card).find(visible)
-               || qsa('input[type=text]', card).find(visible);
-    const genBtn = qsa('button,a,input[type=button]', card).find(b => /QR\s*생성/.test((b.textContent||b.value||'')));
-    let saveBtn = qs('#btnQrSaveTop', card);
+  function textOf(el){ return (el && (el.textContent||el.value||'')).trim(); }
+
+  function findGenBtn(card){
+    return $$('button,a,input[type=button]', card).find(b => /QR\s*생성/i.test(textOf(b))) ||
+           $$('button,a,input[type=button]', card).find(b => /생성|generate|create/i.test(textOf(b)));
+  }
+
+  function nearestInputTo(genBtn, scope){
+    // 1) immediate previous siblings within same parent
+    if (genBtn && genBtn.parentNode){
+      let p = genBtn.previousElementSibling;
+      for (let hop=0; hop<4 && p; hop++, p=p.previousElementSibling){
+        if (/^INPUT$/i.test(p.tagName) && vis(p)) return p;
+        const c = $('input', p); if (c && vis(c)) return c;
+      }
+      // 2) any input within same parent
+      let cand = $$('input', genBtn.parentNode).find(vis);
+      if (cand) return cand;
+    }
+    // 3) placeholder/id/name containing 'table|테이블'
+    let cand = $$('input[placeholder*="테이블"], input[id*="table"], input[name*="table"], input[id*="테이블"], input[name*="테이블"]', scope).find(vis);
+    if (cand) return cand;
+    // 4) type=number visible
+    cand = $$('input[type=number]', scope).find(vis);
+    if (cand) return cand;
+    // 5) any visible text input
+    cand = $$('input[type=text]', scope).find(vis);
+    if (cand) return cand;
+    // 6) last resort: any visible input on page
+    cand = $$('input', document).find(vis);
+    return cand || null;
+  }
+
+  function ensureUI(card){
+    const genBtn = findGenBtn(card);
+    // Save button
+    let saveBtn = $('#btnQrSaveTop', card);
     if (!saveBtn){
-      saveBtn = document.createElement(genBtn && genBtn.tagName==='A' ? 'a' : 'button');
+      saveBtn = document.createElement(genBtn && /^A$/i.test(genBtn.tagName) ? 'a' : 'button');
       saveBtn.id = 'btnQrSaveTop';
       saveBtn.className = genBtn ? (genBtn.className||'btn') : 'btn';
       saveBtn.textContent = 'QR 저장';
       if (genBtn && genBtn.parentNode){
-        genBtn.parentNode.insertBefore(saveBtn, genBtn.nextSibling ? genBtn.nextSibling.nextSibling || genBtn.nextSibling : null);
+        const parent = genBtn.parentNode;
+        parent.insertBefore(saveBtn, genBtn.nextSibling ? genBtn.nextSibling.nextSibling || genBtn.nextSibling : null);
       } else {
         card.insertBefore(saveBtn, card.firstChild);
       }
     }
-    let prevWrap = qs('#qrPreviewDet', card);
+    // Preview wrapper
+    let prevWrap = $('#qrPreviewDet', card);
     if (!prevWrap){
-      prevWrap = document.createElement('div'); prevWrap.id = 'qrPreviewDet'; prevWrap.style.marginTop='8px';
+      prevWrap = document.createElement('div'); prevWrap.id='qrPreviewDet'; prevWrap.style.marginTop='8px';
       if (genBtn && genBtn.parentNode) genBtn.parentNode.parentNode.insertBefore(prevWrap, genBtn.parentNode.nextSibling);
       else card.appendChild(prevWrap);
     }
-    let title = qs('h4[data-det-saved]', card);
-    let grid  = qs('#qrSavedList', card);
-    if (title) title.remove();
-    if (grid) grid.remove();
-    title = document.createElement('h4'); title.dataset.detSaved='1'; title.textContent='저장된 QR'; title.style.margin='12px 0 4px'; prevWrap.after(title);
-    grid  = document.createElement('div'); grid.id='qrSavedList'; grid.className='qr-grid'; title.after(grid);
-    return {input, genBtn, saveBtn, prevWrap, grid};
+    // Saved grid (unique per card)
+    $$('#qrSavedList', card).forEach((n,i)=>{ if(i>0) n.remove(); });
+    let title = $('h4[data-det-saved]', card); if (!title){ title = document.createElement('h4'); title.dataset.detSaved='1'; title.textContent='저장된 QR'; title.style.margin='12px 0 4px'; prevWrap.after(title); }
+    let grid = $('#qrSavedList', card); if (!grid){ grid = document.createElement('div'); grid.id='qrSavedList'; grid.className='qr-grid'; title.after(grid); }
+
+    // Remove legacy blocks/buttons under preview
+    $$('#qrManager, #qrMgrRow, #btnQrGen_mgr, #btnQrClear_mgr', card).forEach(n=>n.remove());
+    $$('button, a', card).forEach(b=>{
+      const t=textOf(b);
+      if (b.id!=='btnQrSaveTop' && /(저장|전체 삭제)/.test(t)){
+        // only if placed after preview
+        if (prevWrap && prevWrap.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) b.remove();
+      }
+    });
+
+    return {genBtn, saveBtn, prevWrap, grid};
   }
 
+  // SimpleQR is embedded elsewhere; fallback minimal preview if unavailable.
   function makeQR(text, size){
     if (window.SimpleQR){ try{ return window.SimpleQR.make(text, size||256); }catch(_){ } }
-    var cvs = document.createElement('canvas'); cvs.width=cvs.height=size||256;
+    var cvs=document.createElement('canvas'); cvs.width=cvs.height=size||256;
     var ctx=cvs.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,cvs.width,cvs.height);
     ctx.fillStyle='#000'; ctx.fillRect(0,0,8,8); return cvs;
   }
   function renderPreview(prevWrap, text){ prevWrap.innerHTML=''; const cvs=makeQR(text,256); prevWrap.appendChild(cvs); return cvs; }
 
-  function getList(){ try{ return JSON.parse(localStorage.getItem('__qr_saved_list')||'[]'); }catch(_){ return []; } }
-  function setList(lst){ localStorage.setItem('__qr_saved_list', JSON.stringify(lst)); }
-
+  function getList(){ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(_){ return []; } }
+  function setList(lst){ localStorage.setItem(KEY, JSON.stringify(lst)); }
   function renderGrid(grid){
-    const list = getList();
+    const list=getList();
     if(!list.length){ grid.innerHTML='<div class="small" style="opacity:.7">저장된 QR이 없습니다. QR 생성 후 [QR 저장]을 눌러 추가하세요.</div>'; return; }
     grid.innerHTML='';
     list.forEach((it,idx)=>{
-      const card = document.createElement('div'); card.className='qr-card';
-      const img  = document.createElement('img'); img.src=it.dataUrl; img.alt='QR '+(it.table||'');
-      const meta = document.createElement('div'); meta.className='qr-meta'; meta.textContent='테이블 '+(it.table||'');
-      const acts = document.createElement('div'); acts.className='qr-actions';
-      const btnDl = document.createElement('button'); btnDl.className='btn'; btnDl.textContent='다운로드';
-      btnDl.onclick=()=>{ const a=document.createElement('a'); a.href=it.dataUrl; a.download='qr_table_'+(it.table||idx)+'.png'; a.click(); };
-      const btnDel=document.createElement('button'); btnDel.className='btn'; btnDel.textContent='삭제';
-      btnDel.onclick=()=>{ const l=getList().filter((_,i)=>i!==idx); setList(l); renderGrid(grid); };
-      acts.appendChild(btnDl); acts.appendChild(btnDel);
+      const card=document.createElement('div'); card.className='qr-card';
+      const img=document.createElement('img'); img.src=it.dataUrl; img.alt='QR '+(it.table||'');
+      const meta=document.createElement('div'); meta.className='qr-meta'; meta.textContent='테이블 '+(it.table||'');
+      const acts=document.createElement('div'); acts.className='qr-actions';
+      const dl=document.createElement('button'); dl.className='btn'; dl.textContent='다운로드';
+      dl.onclick=()=>{ const a=document.createElement('a'); a.href=it.dataUrl; a.download='qr_table_'+(it.table||idx)+'.png'; a.click(); };
+      const rm=document.createElement('button'); rm.className='btn'; rm.textContent='삭제';
+      rm.onclick=()=>{ const l=getList().filter((_,i)=>i!==idx); setList(l); renderGrid(grid); };
+      acts.appendChild(dl); acts.appendChild(rm);
       card.appendChild(img); card.appendChild(meta); card.appendChild(acts);
       grid.appendChild(card);
     });
   }
 
   function main(){
-    const card = findQrCard();
-    const ui = ensureControls(card);
-    // Remove any leftover legacy blocks
-    qsa('#qrManager, #qrMgrRow, #btnQrGen_mgr, #btnQrClear_mgr').forEach(n=>n && n.remove());
+    const card=findQrCard();
+    const ui=ensureUI(card);
+
+    // When [QR 생성] clicked -> re-render preview using the nearest input at that moment
     if (ui.genBtn){
       ui.genBtn.addEventListener('click', ()=>{
         setTimeout(()=>{
-          const val=(ui.input && ui.input.value || '').trim();
+          const input = nearestInputTo(ui.genBtn, card);
+          const val = (input && input.value || '').trim();
           if(!val) return;
           renderPreview(ui.prevWrap, val);
-        }, 50);
+        }, 30);
       });
     }
+
+    // [QR 저장] click -> pick the *nearest* input to the gen button at click time
     ui.saveBtn.addEventListener('click', ()=>{
-      const val = (ui.input && ui.input.value || '').trim();
+      const input = nearestInputTo(ui.genBtn, card);
+      const val = (input && input.value || '').trim();
       if(!val){ alert('테이블 번호를 입력하세요'); return; }
       const cvs = renderPreview(ui.prevWrap, val);
       const dataUrl = cvs.toDataURL('image/png');
-      const list = getList();
-      const idx = list.findIndex(x=> String(x.table||'')===String(val));
-      const item = {table:String(val), dataUrl, ts:Date.now()};
+      const list=getList();
+      const idx=list.findIndex(x=> String(x.table||'')===String(val));
+      const item={table:String(val), dataUrl, ts:Date.now()};
       if (idx>=0) list[idx]=item; else list.push(item);
       setList(list);
       renderGrid(ui.grid);
     });
+
     renderGrid(ui.grid);
   }
+
   document.addEventListener('DOMContentLoaded', main);
 })();
 </script>
