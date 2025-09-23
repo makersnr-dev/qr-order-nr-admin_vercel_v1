@@ -24,7 +24,7 @@
 .btn.tab:hover{filter:brightness(1.1)}
 .btn.tab.active{background:#102335;border-color:#38506a;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.05)}
 .badge{display:inline-block;background:#11351e;border:1px solid #2f7a43;color:#9be6b2;border-radius:9999px;padding:2px 8px;font-size:12px;vertical-align:middle;margin-left:6px}
-/* --- Stack utilities (content flows under buttons) --- */
+/* --- Stack utilities --- */
 .stack, .stack .row { display:block; width:100%; }
 .stack > * { display:block; width:100%; margin-top:6px; }
 #staffCalls > div { display:block; }
@@ -36,6 +36,13 @@
 .notify-actions{display:flex;flex-wrap:wrap;gap:8px}
 .notify-meta{display:flex;flex-wrap:wrap;gap:16px}
 .notify-close{position:absolute;right:16px;top:12px;cursor:pointer;border:1px solid #345;border-radius:8px;padding:4px 8px}
+/* --- QR grid --- */
+.qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:8px}
+.qr-card{background:#0e1a26;border:1px solid #234;border-radius:12px;padding:10px;text-align:center}
+.qr-card img{width:100%;height:auto;image-rendering:pixelated}
+.qr-meta{margin-top:6px;font-weight:600}
+.qr-actions{display:flex;gap:8px;justify-content:center;margin-top:6px}
+.qr-actions .btn{padding:4px 8px;border-radius:10px}
 
 </style>
 </head><body>
@@ -55,7 +62,20 @@
 
   <div class="tabs">
     <div class="tab active" data-tab="orders" class="tab">주문목록</div>
-    <div class="tab" data-tab="qr" class="tab">QR 배포</div>
+    <div class="tab" data-tab="qr" class="tab">QR 배포<</button>
+<div id="qrManager" class="stack" style="margin-top:8px">
+  <div class="chips">
+    <label for="qrTableNo">테이블 번호</label>
+    <input id="qrTableNo" type="number" min="1" placeholder="예: 12" />
+    <button class="btn" id="btnQrGen">QR 생성</button>
+    <button class="btn" id="btnQrSave">저장</button>
+    <button class="btn" id="btnQrClear">전체 삭제</button>
+  </div>
+  <div id="qrPreview" style="margin-top:8px"></div>
+  <h4 style="margin:12px 0 4px">저장된 QR</h4>
+  <div id="qrSavedList" class="qr-grid"></div>
+</div>
+</div>
     <div class="tab" data-tab="menu" class="tab">메뉴 관리</div>
     <div class="tab" data-tab="code" class="tab">결제 코드</div>
   </div>
@@ -223,8 +243,8 @@ init();
         <button class="btn" id="btnTestNotif">브라우저 알림 테스트</button>
       </div>
       <div class="small" id="notifyHelp" style="margin-top:6px">
-        - 소리는 브라우저 정책상 <b>한 번 클릭</b>으로 활성화해야 합니다.<br/>
-        - 페이지가 <b>열려 있어야</b> 실시간 알림을 받습니다.
+        - 소리는 한 번 클릭해 활성화해야 합니다.<br/>
+        - 페이지가 열려 있어야 실시간 알림을 받습니다.
       </div>
     </div>
   </div>
@@ -249,7 +269,6 @@ init();
 
   NS.userEnabledBeep = NS.userEnabledBeep || false;
   NS.audioCtx = NS.audioCtx || null;
-  NS.sseConnected = NS.sseConnected || false;
   NS._lastMsgAt = NS._lastMsgAt || 0;
   NS._lastSig = NS._lastSig || null;
   NS._lastSigAt = NS._lastSigAt || 0;
@@ -257,9 +276,7 @@ init();
   NS._retries = NS._retries || 0;
 
   NS.setSseStatus = function(ok, extra){
-    NS.sseConnected = !!ok;
     var el = document.getElementById('sseStatus'); if(el) el.textContent = ok ? '연결됨' : '끊김';
-    if(extra){ var help = document.getElementById('notifyHelp'); if(help){ help.setAttribute('data-last-error', String(extra)); } }
     try{
       const s=(window.Notification&&Notification.permission)?Notification.permission:'unsupported';
       const pe=document.getElementById('notifPerm'); if(pe) pe.textContent=s;
@@ -288,40 +305,21 @@ init();
   };
   NS.playBeep = function(ms=150, freq=880){
     try{
-      NS.ensureAudio();
-      if(!NS.audioCtx) return;
-      const o = NS.audioCtx.createOscillator();
-      const g = NS.audioCtx.createGain();
-      o.connect(g).connect(NS.audioCtx.destination);
-      o.type='sine'; o.frequency.value=freq; g.gain.value=0.06;
-      o.start(); setTimeout(()=>{ try{o.stop();}catch(_){ } }, ms);
+      NS.ensureAudio(); if(!NS.audioCtx) return;
+      const o = NS.audioCtx.createOscillator(); const g = NS.audioCtx.createGain();
+      o.connect(g).connect(NS.audioCtx.destination); o.type='sine'; o.frequency.value=freq; g.gain.value=0.06; o.start(); setTimeout(()=>{ try{o.stop();}catch(_){ } }, ms);
     }catch(_){}
   };
-
-  NS.updateNotifPerm = function(){
-    try{
-      const s=(window.Notification&&Notification.permission)?Notification.permission:'unsupported';
-      const el=document.getElementById('notifPerm'); if(el) el.textContent=s;
-      const btn=document.getElementById('btnRequestNotif'); if(btn){
-        if(s==='granted'){ btn.textContent='브라우저 알림 허용됨'; btn.disabled=true; }
-        else if(s==='denied'){ btn.textContent='브라우저 알림 차단됨'; btn.disabled=true; }
-      }
-    }catch(_){}
-  };
-  NS.requestNotif = function(){ if(!window.Notification){ alert('이 브라우저는 알림을 지원하지 않습니다.'); return; } Notification.requestPermission().then(NS.updateNotifPerm); };
-  NS.testNotif = function(){ if(window.Notification && Notification.permission==='granted'){ new Notification('테스트 알림', { body: '직원 호출 알림이 이렇게 표시됩니다.' }); } else { alert('먼저 [브라우저 알림 허용 요청]을 눌러 권한을 허용해주세요.'); } };
 
   NS.getApiBase = function(){
     try{
       if (window.API_BASE) return String(window.API_BASE);
-      var meta = document.querySelector('meta[name=\"api-base\"]'); 
-      if (meta && meta.content) return String(meta.content);
+      var meta = document.querySelector('meta[name="api-base"]'); if (meta && meta.content) return String(meta.content);
     }catch(_){}
     return '';
   };
   NS.getSseCandidates = function(){
-    const base = NS.getApiBase();
-    const cand = [];
+    const base = NS.getApiBase(); const cand = [];
     if (base) cand.push(base.replace(/\/+$/,'') + '/events/orders');
     cand.push('/events/orders');
     return cand;
@@ -342,9 +340,7 @@ init();
 
         es.onopen = ()=>{ NS.setSseStatus(true, 'connected '+url); NS._activeUrl = url; };
         es.onerror = ()=>{
-          if (!NS._activeUrl && idx < list.length-1){
-            idx++; try{ es.close(); }catch(_){}; connect(); return;
-          }
+          if (!NS._activeUrl && idx < list.length-1){ idx++; try{ es.close(); }catch(_){}; connect(); return; }
           NS.setSseStatus(false, 'onerror '+url);
         };
         const prev = es.onmessage;
@@ -389,12 +385,78 @@ init();
   };
 
   document.addEventListener('DOMContentLoaded', function(){
-    NS.updateNotifPerm();
-    const b1=qs('btnEnableSound'); if(b1) b1.onclick=()=>{ NS.userEnabledBeep=true; NS.playBeep(); };
-    const b2=qs('btnTestSound'); if(b2) b2.onclick=()=>{ NS.playBeep(); };
-    const b3=qs('btnRequestNotif'); if(b3) b3.onclick=NS.requestNotif;
-    const b4=qs('btnTestNotif'); if(b4) b4.onclick=NS.testNotif;
+    // Wire modal controls
+    const b1=document.getElementById('btnEnableSound'); if(b1) b1.onclick=()=>{ NS.userEnabledBeep=true; NS.playBeep(); };
+    const b2=document.getElementById('btnTestSound'); if(b2) b2.onclick=()=>{ NS.playBeep(); };
+    const b3=document.getElementById('btnRequestNotif'); if(b3) b3.onclick=()=>{ if(!window.Notification){ alert('이 브라우저는 알림을 지원하지 않습니다.'); return; } Notification.requestPermission().then(()=>NS.setSseStatus(NS.es&&NS.es.readyState===1)); };
+    const b4=document.getElementById('btnTestNotif'); if(b4) b4.onclick=()=>{ if(window.Notification && Notification.permission==='granted'){ new Notification('테스트 알림', { body: '직원 호출 알림이 이렇게 표시됩니다.' }); } else { alert('먼저 [브라우저 알림 허용 요청]을 눌러 권한을 허용해주세요.'); } };
     NS.startSSE();
+  });
+})();
+</script>
+
+<script>
+// Tiny QR canvas generator (SimpleQR)
+!function(o){function u(a){this.mode=s,this.data=a}function h(a,c){this.typeNumber=a,this.errorCorrectLevel=c,this.modules=null,this.moduleCount=0,this.dataCache=null,this.dataList=[]}function d(){return {L:1,M:0,Q:3,H:2}}var s=4;u.prototype.getLength=function(){return this.data.length},u.prototype.write=function(a){for(var c=0;c<this.data.length;c++){var b=this.data.charCodeAt(c);128>b?a.put(b,8):(2048>b?a.put(192|b>>6,8):(a.put(224|b>>12,8),a.put(128|b>>6&63,8)),a.put(128|63&b,8))}};var t={PAD0:236,PAD1:17};h.prototype={addData:function(a){this.dataList.push(new u(a)),this.dataCache=null},isDark:function(a,c){if(null==this.modules||0>a||this.moduleCount<=a||0>c||this.moduleCount<=c)throw new Error(a+","+c);return this.modules[a][c]},getModuleCount:function(){return this.moduleCount},make:function(){if(this.typeNumber<1){for(var a=1;40>=a;a++){var c=new h(a,this.errorCorrectLevel);c.addData(this.dataList[0].data);try{c.makeImpl();this.typeNumber=a;break}catch(e){}}}this.makeImpl()},makeImpl:function(){this.moduleCount=4*this.typeNumber+17,this.modules=new Array(this.moduleCount);for(var a=0;a<this.moduleCount;a++){this.modules[a]=new Array(this.moduleCount);for(var c=0;c<this.moduleCount;c++)this.modules[a][c]=null}this.setupPositionProbePattern(0,0),this.setupPositionProbePattern(this.moduleCount-7,0),this.setupPositionProbePattern(0,this.moduleCount-7),this.setupTimingPattern(),this.mapData(this.createData())},setupPositionProbePattern:function(a,c){for(var b=-1;7>=b;b++)if(!(0>a+b||this.moduleCount<=a+b))for(var d=-1;7>=d;d++)0>c+d||this.moduleCount<=c+d||(this.modules[a+b][c+d]=0<=b&&6>=b&&(0==d||6==d)||0<=d&&6>=d&&(0==b||6==b)||2<=b&&4>=b&&2<=d&&4>=d)},setupTimingPattern:function(){for(var a=8;a<this.moduleCount-8;a++)null==this.modules[a][6]&&(this.modules[a][6]=0==a%2),null==this.modules[6][a]&&(this.modules[6][a]=0==a%2)},mapData:function(a){for(var c=-1,b=this.moduleCount-1,d=7,e=0,f=this.moduleCount-1;0<f;f-=2){for(6==f&&f--;;;){for(var g=0;2>g;g++)null==this.modules[b][f-g]&&(e<a.length?this.modules[b][f-g]=1==(a[e]>>>d&1):this.modules[b][f-g]=!1,d--,-1==d&&(e++,d=7));if(b+=c,0>b||this.moduleCount<=b){b-=c,c=-c;break}}}},createData:function(){for(var a=[],c=0;c<this.dataList.length;c++){var b=this.dataList[c];a.push(4),a.push(b.getLength()),a=a.concat(function(b){for(var a=[],c=0;c<b.length;c++)a.push(b.charCodeAt(c));return a}(b.data))}for(a.push(t.PAD0),a.push(t.PAD1);a.length<4*this.typeNumber+17;)a.push(t.PAD0),a.push(t.PAD1);return a}};o.SimpleQR={make:function(text,sz){var q=new h(0,d().M);q.addData(text);q.make();var c=q.getModuleCount(),cs=Math.floor(sz/c);var cvs=document.createElement('canvas'); cvs.width=c*cs; cvs.height=c*cs; var ctx=cvs.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,cvs.width,cvs.height); ctx.fillStyle='#000'; for(var r=0;r<c;r++){for(var col=0;col<c;col++){if(q.isDark(r,col)){ctx.fillRect(col*cs,r*cs,cs,cs);}}} return cvs;}
+}}(window);
+</script>
+
+<script>
+(function(){
+  if (window.__QR_QRMGR && window.__QR_QRMGR.init) return;
+  window.__QR_QRMGR = { init:true };
+  const KEY = '__qr_saved_list';
+  function qs(id){ return document.getElementById(id); }
+  function getList(){ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(_){ return []; } }
+  function setList(arr){ localStorage.setItem(KEY, JSON.stringify(arr)); }
+  function render(){
+    const box = qs('qrSavedList'); if(!box) return;
+    const list = getList();
+    if(list.length===0){ box.innerHTML = '<div class="small" style="opacity:.7">저장된 QR이 없습니다. 위에서 생성 후 [저장]을 눌러 추가하세요.</div>'; return; }
+    box.innerHTML = '';
+    list.forEach((it,idx)=>{
+      const card = document.createElement('div'); card.className='qr-card';
+      const img = document.createElement('img'); img.src = it.dataUrl; img.alt = 'QR '+(it.table||'');
+      const meta = document.createElement('div'); meta.className='qr-meta'; meta.textContent = '테이블 ' + (it.table||'');
+      const acts = document.createElement('div'); acts.className='qr-actions';
+      const btnDl = document.createElement('button'); btnDl.className='btn'; btnDl.textContent='다운로드';
+      btnDl.onclick = ()=>{ const a=document.createElement('a'); a.href=it.dataUrl; a.download='qr_table_'+(it.table||idx)+'.png'; a.click(); };
+      const btnDel = document.createElement('button'); btnDel.className='btn'; btnDel.textContent='삭제';
+      btnDel.onclick = ()=>{ const l=getList().filter((_,i)=>i!==idx); setList(l); render(); };
+      acts.appendChild(btnDl); acts.appendChild(btnDel);
+      card.appendChild(img); card.appendChild(meta); card.appendChild(acts);
+      box.appendChild(card);
+    });
+  }
+  function preview(text){
+    const wrap = qs('qrPreview'); if(!wrap) return null;
+    wrap.innerHTML = '';
+    try{
+      const cvs = window.SimpleQR ? window.SimpleQR.make(text, 256) : null;
+      if(!cvs){ wrap.innerHTML = '<div class="small" style="color:#f88">QR 생성 라이브러리가 로드되지 않았습니다.</div>'; return null; }
+      wrap.appendChild(cvs);
+      return cvs;
+    }catch(e){
+      wrap.innerHTML = '<div class="small" style="color:#f88">QR 생성 실패: '+e.message+'</div>';
+      return null;
+    }
+  }
+  function currentText(){
+    const t = (qs('qrTableNo')||{}).value || '';
+    return String(t).trim();
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    const gen = qs('btnQrGen');
+    const save = qs('btnQrSave');
+    const clear = qs('btnQrClear');
+    if(gen){ gen.onclick = ()=>{ const txt=currentText(); if(!txt){ alert('테이블 번호를 입력하세요'); return; } preview(txt); }; }
+    if(save){ save.onclick = ()=>{ const txt=currentText(); if(!txt){ alert('테이블 번호를 입력하세요'); return; } const cvs=preview(txt); if(!cvs){ return; } const dataUrl=cvs.toDataURL('image/png'); const l=getList(); 
+      const idx = l.findIndex(x=> String(x.table||'')===String(txt)); 
+      if(idx>=0) l[idx] = {table:String(txt), dataUrl:dataUrl, ts:Date.now()}; else l.push({table:String(txt), dataUrl:dataUrl, ts:Date.now()});
+      setList(l); render();
+    }; }
+    if(clear){ clear.onclick = ()=>{ if(confirm('저장된 QR을 모두 삭제할까요?')){ setList([]); render(); } }; }
+    render();
   });
 })();
 </script>
