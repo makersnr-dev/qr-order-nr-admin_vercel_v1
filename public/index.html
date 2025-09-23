@@ -18,7 +18,7 @@
   .pill.warn{background:#2a160b;border-color:#4e331f;color:#ffd9b3}
   .muted{color:var(--muted)} .hidden{display:none}
 
-/* === QR 배포 보조 UI (v5.3) === */
+/* === QR 배포 보조 UI (v5.4) === */
 .qr-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; margin-top:8px; }
 .qr-card { background:#0e1a26; border:1px solid #234; border-radius:12px; padding:10px; text-align:center; }
 .qr-card img { width:100%; height:auto; image-rendering:pixelated; }
@@ -27,6 +27,7 @@
 .qr-actions .btn { padding:4px 8px; border-radius:10px; }
 #qrPreviewDet { margin-top:8px; }
 #qrPreviewCanvas { max-width:256px; width:100%; border-radius:8px; display:none; }
+#qrPreviewHint { opacity:.65; font-size:.9em; margin:6px 0 0; }
 
 </style>
 </head><body>
@@ -194,75 +195,24 @@ init();
 </script>
 
 <script>
-// QR helper (v5.3) - Simple, readable ES5
-(function(){
-  if (window.__QR_HELPER_53) return;
-  window.__QR_HELPER_53 = true;
+(function(){ // __QR_CTRL_54
+  if (window.__QR_CTRL_54) return;
+  window.__QR_CTRL_54 = true;
 
-  // Minimal QR maker (small, ES5). For reliability, you can swap to a full QR lib later.
-  window.SimpleQR = {
-    make: function(text, size){
-      // Super-simple: draw text as blocks via a hash; not a real QR but placeholder.
-      // Replace with real QR generation if needed.
-      size = size || 256;
-      var cvs = document.createElement('canvas');
-      cvs.width = size; cvs.height = size;
-      var ctx = cvs.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,size,size);
-      ctx.fillStyle = '#000';
-      // hash
-      var h = 0, i;
-      for(i=0;i<text.length;i++){ h = (h*31 + text.charCodeAt(i)) >>> 0; }
-      // draw pseudo-pattern
-      var cells = 41; // keeps it visually QR-like
-      var cell = Math.max(2, Math.floor(size / cells));
-      for(var r=0;r<cells;r++){
-        for(var c=0;c<cells;c++){
-          var v = ((r*cells + c + h) * 1103515245 + 12345) & 0x7fffffff;
-          if ((v % 5) === 0){
-            ctx.fillRect(c*cell, r*cell, cell, cell);
-          }
-        }
-      }
-      // finder corners (visual)
-      function corner(x,y){
-        ctx.fillRect(x,y,6*cell,6*cell);
-        ctx.fillStyle='#fff'; ctx.fillRect(x+cell,y+cell,4*cell,4*cell);
-        ctx.fillStyle='#000'; ctx.fillRect(x+2*cell,y+2*cell,2*cell,2*cell);
-      }
-      ctx.fillStyle='#000';
-      corner(1*cell,1*cell);
-      corner(size-7*cell,1*cell);
-      corner(1*cell,size-7*cell);
-      return cvs;
-    }
-  };
-})();
-</script>
-
-
-<script>
-(function(){ // QR controller (v5.3)
-  if (window.__QR_CTRL_53) return;
-  window.__QR_CTRL_53 = true;
-
+  // --- tiny helpers (ES5) ---
   function $(sel, root){ return (root||document).querySelector(sel); }
   function $all(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
   function textOf(el){ return (el && (el.textContent || el.value || '')).replace(/^\s+|\s+$/g,''); }
   function visible(el){ return el && el.offsetParent !== null && !el.disabled; }
+  function now(){ return (new Date()).getTime(); }
 
+  // Find the QR section "card"
   function findQrCard(){
     var heads = $all('h1,h2,h3,h4');
-    var h = null, i;
-    for(i=0;i<heads.length;i++){
-      if (/QR\s*배포/.test(textOf(heads[i]))){ h = heads[i]; break; }
-    }
-    if (!h){
-      for(i=0;i<heads.length;i++){
-        if (/QR\s*생성/.test(textOf(heads[i]))){ h = heads[i]; break; }
-      }
-    }
-    var card = h ? (h.closest && (h.closest('.card') || h.parentElement) || h.parentElement) : null;
+    var h=null, i;
+    for(i=0;i<heads.length;i++){ if (/QR\s*배포/.test(textOf(heads[i]))){ h=heads[i]; break; } }
+    if(!h){ for(i=0;i<heads.length;i++){ if (/QR\s*생성/.test(textOf(heads[i]))){ h=heads[i]; break; } } }
+    var card = h ? (h.closest && (h.closest('.card')||h.parentElement) || h.parentElement) : null;
     return card || document.body;
   }
 
@@ -275,8 +225,8 @@ init();
 
   function nearestInputTo(genBtn, scope){
     if (genBtn && genBtn.parentNode){
-      var p = genBtn.previousElementSibling, hop = 0;
-      while (p && hop < 4){
+      var p = genBtn.previousElementSibling, hop=0;
+      while(p && hop<4){
         if (p.tagName && p.tagName.toUpperCase()==='INPUT' && visible(p)) return p;
         var c = $('input', p); if (c && visible(c)) return c;
         p = p.previousElementSibling; hop++;
@@ -291,37 +241,27 @@ init();
     var cand5 = $all('input', document).filter(visible)[0]; return cand5 || null;
   }
 
-  function computeTargetText(card, val){
-    val = String(val||'').replace(/^\s+|\s+$/g,'');
-    var base = window.__QR_BASE || 'https://qr-order-nr-vercel-v1-seven.vercel.app';
-    try{
-      if (!window.__QR_BASE && /-admin-/.test(location.hostname)){
-        base = location.origin.replace('-admin-','-');
-      }
-    }catch(e){}
-    return base + '?table=' + encodeURIComponent(val);
-  }
-
+  // Set up preview (above saved grid) and Save button placement
   function ensureUI(card){
-    var genBtn = findGenBtn(card);
-
-    // 1) Preview container (ABOVE the saved list)
+    var gen = findGenBtn(card);
     var prevWrap = $('#qrPreviewDet', card);
     if (!prevWrap){
-      prevWrap = document.createElement('div'); prevWrap.id = 'qrPreviewDet';
-      if (genBtn && genBtn.parentNode){
-        genBtn.parentNode.parentNode.insertBefore(prevWrap, genBtn.parentNode.nextSibling);
-      } else {
-        card.insertBefore(prevWrap, card.firstChild);
-      }
+      prevWrap = document.createElement('div'); prevWrap.id='qrPreviewDet';
+      if (gen && gen.parentNode){ gen.parentNode.parentNode.insertBefore(prevWrap, gen.parentNode.nextSibling); }
+      else { card.insertBefore(prevWrap, card.firstChild); }
     }
     var canvas = $('#qrPreviewCanvas', prevWrap);
     if (!canvas){
-      canvas = document.createElement('canvas'); canvas.id = 'qrPreviewCanvas';
+      canvas = document.createElement('canvas'); canvas.id='qrPreviewCanvas';
       prevWrap.appendChild(canvas);
     }
+    var hint = $('#qrPreviewHint', prevWrap);
+    if (!hint){
+      hint = document.createElement('div'); hint.id='qrPreviewHint';
+      hint.appendChild(document.createTextNode('QR 생성 버튼을 누르면 미리보기가 표시됩니다.'));
+      prevWrap.appendChild(hint);
+    }
 
-    // 2) Saved list title + grid (BELOW preview)
     var title = $('h4[data-det-saved]', card);
     if (!title){
       title = document.createElement('h4'); title.setAttribute('data-det-saved','1');
@@ -330,62 +270,91 @@ init();
     }
     var grid = $('#qrSavedList', card);
     if (!grid){
-      grid = document.createElement('div'); grid.id = 'qrSavedList'; grid.className = 'qr-grid';
+      grid = document.createElement('div'); grid.id='qrSavedList'; grid.className='qr-grid';
       title.parentNode.insertBefore(grid, title.nextSibling);
     }
 
-    // 3) Save button next to [QR 생성]
     var saveBtn = $('#btnQrSaveTop', card);
     if (!saveBtn){
-      saveBtn = document.createElement('button'); saveBtn.id = 'btnQrSaveTop';
-      saveBtn.className = genBtn ? (genBtn.className || 'btn') : 'btn';
+      saveBtn = document.createElement('button'); saveBtn.id='btnQrSaveTop';
+      saveBtn.className = gen ? (gen.className||'btn') : 'btn';
       saveBtn.appendChild(document.createTextNode('QR 저장'));
-      if (genBtn && genBtn.parentNode){
-        var p = genBtn.parentNode;
-        if (genBtn.nextSibling) p.insertBefore(saveBtn, genBtn.nextSibling.nextSibling || genBtn.nextSibling);
+      if (gen && gen.parentNode){
+        var p = gen.parentNode;
+        if (gen.nextSibling) p.insertBefore(saveBtn, gen.nextSibling.nextSibling || gen.nextSibling);
         else p.appendChild(saveBtn);
-      } else card.insertBefore(saveBtn, card.firstChild);
+      } else { card.insertBefore(saveBtn, card.firstChild); }
     }
 
-    return { genBtn:genBtn, saveBtn:saveBtn, canvas:canvas, grid:grid, prevWrap:prevWrap };
+    return { genBtn:gen, saveBtn:saveBtn, canvas:canvas, grid:grid, hint:hint, prevWrap:prevWrap };
   }
 
-  function drawQR(canvas, text){
-    if (!text) return false;
-    var rect = canvas.getBoundingClientRect();
-    var size = Math.max(200, Math.min(320, Math.round(rect.width || 256)));
-    canvas.width = size; canvas.height = size;
-    var tmp = null;
-    try { tmp = window.SimpleQR && window.SimpleQR.make(String(text), size); } catch(e){ tmp = null; }
-    if (!tmp) return false;
-    var ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,size,size);
-    ctx.drawImage(tmp,0,0,size,size);
-    canvas.style.display = 'block';
+  // Find the REAL QR element produced by the page
+  function findRealQR(card){
+    var nodes = $all('canvas, img', card).filter(function(n){
+      return visible(n) && n.id !== 'qrPreviewCanvas' && !n.closest('#qrPreviewDet');
+    });
+    // pick largest near-square
+    var best=null, score=0, i;
+    for(i=0;i<nodes.length;i++){
+      var n=nodes[i], r=n.getBoundingClientRect();
+      var area=Math.max(1, r.width*r.height);
+      var ratio = (r.width && r.height) ? (r.width/r.height) : 1;
+      var square = 1 - Math.min(1, Math.abs(1-ratio));
+      var s = area * (0.7 + 0.3*square);
+      if (s > score){ best = n; score = s; }
+    }
+    return best;
+  }
+
+  function drawToCanvas(targetCanvas, sourceEl){
+    if (!sourceEl) return false;
+    var rect = targetCanvas.getBoundingClientRect();
+    var size = Math.max(200, Math.min(320, Math.round(rect.width||256)));
+    targetCanvas.width = size; targetCanvas.height = size;
+
+    // clone source (canvas or img) into a temp canvas to avoid taint
+    function clone(el){
+      if (el.tagName === 'CANVAS'){
+        var cvs = document.createElement('canvas'); cvs.width = el.width||256; cvs.height=el.height||256;
+        var ctx = cvs.getContext('2d'); ctx.drawImage(el,0,0,cvs.width,cvs.height); return cvs;
+      } else if (el.tagName === 'IMG'){
+        var w = el.naturalWidth||el.width||256, h=el.naturalHeight||el.height||256;
+        var cvs=document.createElement('canvas'); cvs.width=w; cvs.height=h;
+        var ctx=cvs.getContext('2d'); ctx.drawImage(el,0,0,w,h); return cvs;
+      }
+      return null;
+    }
+    var src = clone(sourceEl); if (!src) return false;
+
+    var w=src.width, h=src.height, sc=Math.min(size/w, size/h);
+    var dw=Math.round(w*sc), dh=Math.round(h*sc);
+    var ctx2 = targetCanvas.getContext('2d');
+    ctx2.fillStyle='#fff'; ctx2.fillRect(0,0,size,size);
+    ctx2.drawImage(src, Math.round((size-dw)/2), Math.round((size-dh)/2), dw, dh);
     return true;
   }
 
-  function getList(){ try { return JSON.parse(localStorage.getItem('__qr_saved_list') || '[]'); } catch(e){ return []; } }
+  // Saved list helpers
+  function getList(){ try { return JSON.parse(localStorage.getItem('__qr_saved_list')||'[]'); } catch(e){ return []; } }
   function setList(lst){ localStorage.setItem('__qr_saved_list', JSON.stringify(lst)); }
-
   function renderGrid(grid){
     var list = getList();
     if (!list.length){
       grid.innerHTML = '<div class="small" style="opacity:.7">저장된 QR이 없습니다. QR 생성 후 [QR 저장]을 눌러 추가하세요.</div>';
       return;
     }
-    grid.innerHTML = '';
+    grid.innerHTML='';
     for (var i=0;i<list.length;i++){
-      var it = list[i];
-      var card = document.createElement('div'); card.className = 'qr-card';
-      var img = document.createElement('img'); img.src = it.dataUrl; img.alt = 'QR ' + (it.table || '');
-      var meta = document.createElement('div'); meta.className = 'qr-meta';
-      meta.appendChild(document.createTextNode('테이블 ' + (it.table || '')));
-      var acts = document.createElement('div'); acts.className = 'qr-actions';
-      var dl = document.createElement('button'); dl.className = 'btn'; dl.appendChild(document.createTextNode('다운로드'));
-      dl.onclick = (function(url,tab,idx){ return function(){ var a=document.createElement('a'); a.href=url; a.download='qr_table_'+(tab||idx)+'.png'; a.click(); }; })(it.dataUrl, it.table, i);
-      var rm = document.createElement('button'); rm.className = 'btn'; rm.appendChild(document.createTextNode('삭제'));
-      rm.onclick = (function(index){ return function(){ var l=getList().filter(function(_,j){ return j!==index; }); setList(l); renderGrid(grid); }; })(i);
+      var it=list[i];
+      var card=document.createElement('div'); card.className='qr-card';
+      var img=document.createElement('img'); img.src=it.dataUrl; img.alt='QR '+(it.table||'');
+      var meta=document.createElement('div'); meta.className='qr-meta'; meta.appendChild(document.createTextNode('테이블 '+(it.table||'')));
+      var acts=document.createElement('div'); acts.className='qr-actions';
+      var dl=document.createElement('button'); dl.className='btn'; dl.appendChild(document.createTextNode('다운로드'));
+      dl.onclick=(function(url,tab,iidx){ return function(){ var a=document.createElement('a'); a.href=url; a.download='qr_table_'+(tab||iidx)+'.png'; a.click(); }; })(it.dataUrl,it.table,i);
+      var rm=document.createElement('button'); rm.className='btn'; rm.appendChild(document.createTextNode('삭제'));
+      rm.onclick=(function(index){ return function(){ var l=getList().filter(function(_,j){ return j!==index; }); setList(l); renderGrid(grid); }; })(i);
       acts.appendChild(dl); acts.appendChild(rm);
       card.appendChild(img); card.appendChild(meta); card.appendChild(acts);
       grid.appendChild(card);
@@ -396,38 +365,45 @@ init();
     var card = findQrCard();
     var ui = ensureUI(card);
 
-    function currentText(){
+    function syncPreview(){
+      // Try to find the real QR after DOM changes or after click
+      var src = findRealQR(card);
+      if (src){
+        if (drawToCanvas(ui.canvas, src)){
+          ui.canvas.style.display='block';
+          ui.hint.style.display='none';
+          // do not hide source; just leave it
+        }
+      }
+    }
+
+    // Observe DOM changes within the card
+    var mo = new MutationObserver(function(){ setTimeout(syncPreview, 40); });
+    mo.observe(card, { childList:true, subtree:true });
+
+    var g = findGenBtn(card);
+    if (g){ g.addEventListener('click', function(){ setTimeout(syncPreview, 80); }); }
+
+    ui.saveBtn.addEventListener('click', function(){
       var gen = findGenBtn(card);
       var input = nearestInputTo(gen, card);
       var val = (input && input.value || '').replace(/^\s+|\s+$/g,'');
-      return computeTargetText(card, val);
-    }
-
-    var g = findGenBtn(card);
-    if (g){
-      g.addEventListener('click', function(){
-        var txt = currentText();
-        drawQR(ui.canvas, txt);
-      });
-    }
-
-    ui.saveBtn.addEventListener('click', function(){
-      var txt = currentText();
-      if (!txt){ alert('테이블 번호를 입력하세요'); return; }
-      if (ui.canvas.style.display === 'none') drawQR(ui.canvas, txt);
+      if (!val){ alert('테이블 번호를 입력하세요'); return; }
+      if (ui.canvas.style.display==='none'){
+        syncPreview();
+        if (ui.canvas.style.display==='none'){ alert('먼저 QR 생성 버튼을 누르세요.'); return; }
+      }
       var dataUrl = ui.canvas.toDataURL('image/png');
       var list = getList();
-      var i, idx = -1;
-      var gen = findGenBtn(card);
-      var input = nearestInputTo(gen, card);
-      var val = (input && input.value || '');
-      for (i=0;i<list.length;i++){ if (String(list[i].table||'')===String(val)){ idx = i; break; } }
-      var item = { table:String(val), dataUrl:dataUrl, ts:(new Date()).getTime() };
-      if (idx >= 0) list[idx] = item; else list.push(item);
+      var i, idx=-1;
+      for (i=0;i<list.length;i++){ if (String(list[i].table||'')===String(val)){ idx=i; break; } }
+      var item = { table:String(val), dataUrl:dataUrl, ts:now() };
+      if (idx>=0) list[idx]=item; else list.push(item);
       setList(list);
       renderGrid(ui.grid);
     });
 
+    // initial render
     renderGrid(ui.grid);
   });
 })();
