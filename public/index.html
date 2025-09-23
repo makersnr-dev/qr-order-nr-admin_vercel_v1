@@ -18,48 +18,17 @@
   .pill.warn{background:#2a160b;border-color:#4e331f;color:#ffd9b3}
   .muted{color:var(--muted)} .hidden{display:none}
 
-/* --- Pill Tabs & Badges --- */
-.tabs-row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
-.btn.tab{border:1px solid #2a3a4a;background:#0f1b28;border-radius:9999px;padding:6px 12px;line-height:1}
-.btn.tab:hover{filter:brightness(1.1)}
-.btn.tab.active{background:#102335;border-color:#38506a;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.05)}
-.badge{display:inline-block;background:#11351e;border:1px solid #2f7a43;color:#9be6b2;border-radius:9999px;padding:2px 8px;font-size:12px;vertical-align:middle;margin-left:6px}
-/* --- Stack utilities --- */
-.stack, .stack .row { display:block; width:100%; }
-.stack > * { display:block; width:100%; margin-top:6px; }
-#staffCalls > div { display:block; }
-/* --- Modal for 알림 설정/점검 --- */
-.notify-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:1000}
-.notify-modal.open{display:flex}
-.notify-panel{background:#0e1a26;border:1px solid #234;border-radius:14px;max-width:720px;width:92%;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
-.notify-panel h3{margin-top:0}
-.notify-actions{display:flex;flex-wrap:wrap;gap:8px}
-.notify-meta{display:flex;flex-wrap:wrap;gap:16px}
-.notify-close{position:absolute;right:16px;top:12px;cursor:pointer;border:1px solid #345;border-radius:8px;padding:4px 8px}
-/* --- QR grid --- */
+/* --- QR 저장 그리드 (deterministic) --- */
 .qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:8px}
 .qr-card{background:#0e1a26;border:1px solid #234;border-radius:12px;padding:10px;text-align:center}
 .qr-card img{width:100%;height:auto;image-rendering:pixelated}
 .qr-meta{margin-top:6px;font-weight:600}
 .qr-actions{display:flex;gap:8px;justify-content:center;margin-top:6px}
 .qr-actions .btn{padding:4px 8px;border-radius:10px}
-
-
-/* --- QR 저장 그리드 (top-save) --- */
-.qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:8px}
-.qr-card{background:#0e1a26;border:1px solid #234;border-radius:12px;padding:10px;text-align:center}
-.qr-card img{width:100%;height:auto;image-rendering:pixelated}
-.qr-meta{margin-top:6px;font-weight:600}
-.qr-actions{display:flex;gap:8px;justify-content:center;margin-top:6px}
-.qr-actions .btn{padding:4px 8px;border-radius:10px}
+#qrPreviewDet canvas{max-width:320px;border-radius:8px}
 
 </style>
 </head><body>
-
-<div id="globalToolbar" style="position:sticky;top:0;z-index:999;background:#0b1724;border-bottom:1px solid #234;padding:8px 10px;display:flex;gap:8px;flex-wrap:wrap">
-  <button class="btn tab" id="globalNotifyBtn">알림 설정/점검</button>
-</div>
-
 <div class="wrap">
   <div class="row" style="justify-content:space-between">
     <h2>관리자 콘솔</h2>
@@ -70,15 +39,15 @@
   </div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="orders" class="tab">주문목록</div>
-    <div class="tab" data-tab="qr" class="tab">QR 배포</div>
-    <div class="tab" data-tab="menu" class="tab">메뉴 관리</div>
-    <div class="tab" data-tab="code" class="tab">결제 코드</div>
+    <div class="tab active" data-tab="orders">주문목록</div>
+    <div class="tab" data-tab="qr">QR 배포</div>
+    <div class="tab" data-tab="menu">메뉴 관리</div>
+    <div class="tab" data-tab="code">결제 코드</div>
   </div>
 
   <div id="pane-orders" class="card">
     <div class="row" style="justify-content:space-between">
-      <div><b class="tab">주문목록</b></div>
+      <div><b>주문목록</b></div>
       <button class="btn" id="exportOrders">엑셀 다운로드</button>
     </div>
     <table id="ordersTbl"><thead><tr><th>시간</th><th>테이블</th><th>항목</th><th>금액</th><th>상태</th></tr></thead><tbody></tbody></table>
@@ -223,397 +192,120 @@ copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.
 init();
 </script>
 
-<div class="notify-modal" id="notifyModal" aria-hidden="true">
-  <div class="notify-panel">
-    <button class="notify-close" id="notifyCloseBtn">닫기</button>
-    <div id="notifyCard" class="stack">
-      <h3>알림 설정/점검</h3>
-      <div class="notify-meta stack">
-        <div>연결 상태: <b id="sseStatus">확인 중...</b></div>
-        <div>브라우저 권한: <b id="notifPerm">확인 중...</b></div>
-      </div>
-      <div class="notify-actions stack">
-        <button class="btn" id="btnEnableSound">소리 활성화</button>
-        <button class="btn" id="btnTestSound">소리 테스트</button>
-        <button class="btn" id="btnRequestNotif">브라우저 알림 허용 요청</button>
-        <button class="btn" id="btnTestNotif">브라우저 알림 테스트</button>
-      </div>
-      <div class="small" id="notifyHelp" style="margin-top:6px">
-        - 소리는 한 번 클릭해 활성화해야 합니다.<br/>
-        - 페이지가 열려 있어야 실시간 알림을 받습니다.
-      </div>
-    </div>
-  </div>
-</div>
-
-
 <script>
-(function(){
-  if (window.__QR_NOTIFY && window.__QR_NOTIFY.initAll) return;
-  window.__QR_NOTIFY = window.__QR_NOTIFY || {};
-  const NS = window.__QR_NOTIFY;
-  NS.initAll = true;
-
-  function qs(id){ return document.getElementById(id); }
-  function openModal(){ const m=qs('notifyModal'); if(m){ m.classList.add('open'); m.setAttribute('aria-hidden','false'); } }
-  function closeModal(){ const m=qs('notifyModal'); if(m){ m.classList.remove('open'); m.setAttribute('aria-hidden','true'); } }
-
-  document.addEventListener('DOMContentLoaded', function(){
-    const openBtn = qs('globalNotifyBtn'); if(openBtn) openBtn.onclick = openModal;
-    const closeBtn = qs('notifyCloseBtn'); if(closeBtn) closeBtn.onclick = closeModal;
-  });
-
-  NS.userEnabledBeep = NS.userEnabledBeep || false;
-  NS.audioCtx = NS.audioCtx || null;
-  NS._lastMsgAt = NS._lastMsgAt || 0;
-  NS._lastSig = NS._lastSig || null;
-  NS._lastSigAt = NS._lastSigAt || 0;
-  NS._hb = NS._hb || null;
-  NS._retries = NS._retries || 0;
-
-  NS.setSseStatus = function(ok, extra){
-    var el = document.getElementById('sseStatus'); if(el) el.textContent = ok ? '연결됨' : '끊김';
-    try{
-      const s=(window.Notification&&Notification.permission)?Notification.permission:'unsupported';
-      const pe=document.getElementById('notifPerm'); if(pe) pe.textContent=s;
-      const btn=document.getElementById('btnRequestNotif'); if(btn){
-        if(s==='granted'){ btn.textContent='브라우저 알림 허용됨'; btn.disabled=true; }
-        else if(s==='denied'){ btn.textContent='브라우저 알림 차단됨'; btn.disabled=true; }
-      }
-    }catch(_){}
-  };
-
-  NS._shouldHandleStaff = function(d){
-    try{
-      const sig = JSON.stringify({t:d.tableNo||'', r:d.reason||'', at: Math.round((d.at||Date.now())/1000)});
-      const now = Date.now();
-      if (NS._lastSig === sig && (now - NS._lastSigAt) < 2000) { return false; }
-      NS._lastSig = sig; NS._lastSigAt = now;
-      return true;
-    }catch(_){ return true; }
-  };
-
-  NS.ensureAudio = function(){
-    try{
-      if(!NS.audioCtx) NS.audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-      if(NS.audioCtx.state==='suspended') NS.audioCtx.resume();
-    }catch(_){}
-  };
-  NS.playBeep = function(ms=150, freq=880){
-    try{
-      NS.ensureAudio(); if(!NS.audioCtx) return;
-      const o = NS.audioCtx.createOscillator(); const g = NS.audioCtx.createGain();
-      o.connect(g).connect(NS.audioCtx.destination); o.type='sine'; o.frequency.value=freq; g.gain.value=0.06; o.start(); setTimeout(()=>{ try{o.stop();}catch(_){ } }, ms);
-    }catch(_){}
-  };
-
-  NS.getApiBase = function(){
-    try{
-      if (window.API_BASE) return String(window.API_BASE);
-      var meta = document.querySelector('meta[name=\"api-base\"]'); if (meta && meta.content) return String(meta.content);
-    }catch(_){}
-    return '';
-  };
-  NS.getSseCandidates = function(){
-    const base = NS.getApiBase(); const cand = [];
-    if (base) cand.push(base.replace(/\/+$/,'') + '/events/orders');
-    cand.push('/events/orders');
-    return cand;
-  };
-
-  NS.startSSE = function(){
-    try{
-      if (NS.es) { try{ NS.es.close(); }catch(_){ } }
-      const list = NS.getSseCandidates();
-      let idx = 0;
-      const connect = ()=>{
-        if (NS.es) { try{ NS.es.close(); }catch(_){ } }
-        const url = list[idx] || list[list.length-1];
-        const es = new EventSource(url);
-        NS.es = es;
-        NS._retries = 0;
-        NS.setSseStatus(false, 'connecting '+url);
-
-        es.onopen = ()=>{ NS.setSseStatus(true, 'connected '+url); NS._activeUrl = url; };
-        es.onerror = ()=>{
-          if (!NS._activeUrl && idx < list.length-1){ idx++; try{ es.close(); }catch(_){}; connect(); return; }
-          NS.setSseStatus(false, 'onerror '+url);
-        };
-        const prev = es.onmessage;
-        es.onmessage = (evt)=>{
-          NS.setSseStatus(true, 'message on '+url);
-          try{
-            const data = JSON.parse(evt.data||'{}');
-            if(data && data.type==='staff_call'){
-              if(!NS._shouldHandleStaff(data)) return;
-              if(typeof handleStaffCall==='function'){ handleStaffCall(data); }
-              if(NS.userEnabledBeep) NS.playBeep(150,880);
-              if(window.Notification && Notification.permission==='granted'){
-                new Notification('직원 호출', { body: `테이블 ${data.tableNo||''} ${data.reason||''}` });
-              }
-              NS._lastMsgAt = Date.now();
-              return;
-            }
-          }catch(_){}
-          if(prev) prev(evt);
-          NS._lastMsgAt = Date.now();
-        };
-      };
-      connect();
-
-      if (!NS._hb) {
-        NS._hb = setInterval(()=>{
-          const ok = NS.es && NS.es.readyState === 1;
-          const silentTooLong = (Date.now() - (NS._lastMsgAt||0)) > 60000;
-          if (!(ok && !silentTooLong)) {
-            if (!NS._reconnecting) {
-              NS._reconnecting = true;
-              const delay = Math.min(30000, 1000 * Math.pow(2, Math.min(NS._retries||0, 5)));
-              setTimeout(()=>{ NS._retries=(NS._retries||0)+1; NS._reconnecting=false; NS.startSSE(); }, delay);
-            }
-          }
-          NS.setSseStatus(ok && !silentTooLong, ok ? '' : 'retrying');
-        }, 5000);
-      }
-    }catch(err){
-      NS.setSseStatus(false, String(err&&err.message||'error'));
-    }
-  };
-
-  document.addEventListener('DOMContentLoaded', function(){
-    const b1=document.getElementById('btnEnableSound'); if(b1) b1.onclick=()=>{ NS.userEnabledBeep=true; NS.playBeep(); };
-    const b2=document.getElementById('btnTestSound'); if(b2) b2.onclick=()=>{ NS.playBeep(); };
-    const b3=document.getElementById('btnRequestNotif'); if(b3) b3.onclick=()=>{ if(!window.Notification){ alert('이 브라우저는 알림을 지원하지 않습니다.'); return; } Notification.requestPermission().then(()=>NS.setSseStatus(NS.es&&NS.es.readyState===1)); };
-    const b4=document.getElementById('btnTestNotif'); if(b4) b4.onclick=()=>{ if(window.Notification && Notification.permission==='granted'){ new Notification('테스트 알림', { body: '직원 호출 알림이 이렇게 표시됩니다.' }); } else { alert('먼저 [브라우저 알림 허용 요청]을 눌러 권한을 허용해주세요.'); } };
-    NS.startSSE();
-  });
-})();
-</script>
-
-<script>
-// Tiny QR canvas generator (SimpleQR)
 !function(o){function u(a){this.mode=s,this.data=a}function h(a,c){this.typeNumber=a,this.errorCorrectLevel=c,this.modules=null,this.moduleCount=0,this.dataCache=null,this.dataList=[]}function d(){return {L:1,M:0,Q:3,H:2}}var s=4;u.prototype.getLength=function(){return this.data.length},u.prototype.write=function(a){for(var c=0;c<this.data.length;c++){var b=this.data.charCodeAt(c);128>b?a.put(b,8):(2048>b?a.put(192|b>>6,8):(a.put(224|b>>12,8),a.put(128|b>>6&63,8)),a.put(128|63&b,8))}};var t={PAD0:236,PAD1:17};h.prototype={addData:function(a){this.dataList.push(new u(a)),this.dataCache=null},isDark:function(a,c){if(null==this.modules||0>a||this.moduleCount<=a||0>c||this.moduleCount<=c)throw new Error(a+","+c);return this.modules[a][c]},getModuleCount:function(){return this.moduleCount},make:function(){if(this.typeNumber<1){for(var a=1;40>=a;a++){var c=new h(a,this.errorCorrectLevel);c.addData(this.dataList[0].data);try{c.makeImpl();this.typeNumber=a;break}catch(e){}}}this.makeImpl()},makeImpl:function(){this.moduleCount=4*this.typeNumber+17,this.modules=new Array(this.moduleCount);for(var a=0;a<this.moduleCount;a++){this.modules[a]=new Array(this.moduleCount);for(var c=0;c<this.moduleCount;c++)this.modules[a][c]=null}this.setupPositionProbePattern(0,0),this.setupPositionProbePattern(this.moduleCount-7,0),this.setupPositionProbePattern(0,this.moduleCount-7),this.setupTimingPattern(),this.mapData(this.createData())},setupPositionProbePattern:function(a,c){for(var b=-1;7>=b;b++)if(!(0>a+b||this.moduleCount<=a+b))for(var d=-1;7>=d;d++)0>c+d||this.moduleCount<=c+d||(this.modules[a+b][c+d]=0<=b&&6>=b&&(0==d||6==d)||0<=d&&6>=d&&(0==b||6==b)||2<=b&&4>=b&&2<=d&&4<=d)},setupTimingPattern:function(){for(var a=8;a<this.moduleCount-8;a++)null==this.modules[a][6]&&(this.modules[a][6]=0==a%2),null==this.modules[6][a]&&(this.modules[6][a]=0==a%2)},mapData:function(a){for(var c=-1,b=this.moduleCount-1,d=7,e=0,f=this.moduleCount-1;0<f;f-=2){for(6==f&&f--;;;){for(var g=0;2>g;g++)null==this.modules[b][f-g]&&(e<a.length?this.modules[b][f-g]=1==(a[e]>>>d&1):this.modules[b][f-g]=!1,d--,-1==d&&(e++,d=7));if(b+=c,0>b||this.moduleCount<=b){b-=c,c=-c;break}}}},createData:function(){for(var a=[],c=0;c<this.dataList.length;c++){var b=this.dataList[c];a.push(4),a.push(b.getLength()),a=a.concat(function(b){for(var a=[],c=0;c<b.length;c++)a.push(b.charCodeAt(c));return a}(b.data))}for(a.push(t.PAD0),a.push(t.PAD1);a.length<4*this.typeNumber+17;)a.push(t.PAD0),a.push(t.PAD1);return a}};o.SimpleQR={make:function(text,sz){var q=new h(0,d().M);q.addData(text);q.make();var c=q.getModuleCount(),cs=Math.floor(sz/c);var cvs=document.createElement('canvas'); cvs.width=c*cs; cvs.height=c*cs; var ctx=cvs.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,cvs.width,cvs.height); ctx.fillStyle='#000'; for(var r=0;r<c;r++){for(var col=0;col<c;col++){if(q.isDark(r,col)){ctx.fillRect(col*cs,r*cs,cs,cs);}}} return cvs;}
 }}(window);
 </script>
 
+
 <script>
 (function(){
-  if (window.__QR_QRINT && window.__QR_QRINT.init) return;
-  window.__QR_QRINT = { init:true };
+  if (window.__QR_DET && window.__QR_DET.v1) return;
+  window.__QR_DET = { v1:true };
+
   const KEY = '__qr_saved_list';
-  function qs(id){ return document.getElementById(id); }
-  function getList(){ try{ return JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(_){ return []; } }
-  function setList(arr){ localStorage.setItem(KEY, JSON.stringify(arr)); }
-  function findQrSection(){
-    const headings = Array.from(document.querySelectorAll('h1,h2,h3,h4'));
-    const h = headings.find(el => /QR\s*(배포|생성)/i.test(el.textContent||''));
-    if(!h) return document.body;
-    const card = h.closest('.card') || h.parentElement;
-    return card || document.body;
-  }
-  function getExistingInput(container){
-    const candidates = [].concat(
-      Array.from(container.querySelectorAll('#qrTableNo, #qrText, #qrInput, input[name=qr], input[type=number], input[type=text]'))
-    );
-    const cand = candidates.find(el => el.offsetParent !== null);
-    return cand || null;
-  }
-  function getExistingPreview(container){
-    const cvs = container.querySelector('canvas, img');
-    return cvs || null;
-  }
-  function buildUI(container, inputEl){
-    let host = container.querySelector('#qrManager');
-    if(!host){
-      host = document.createElement('div');
-      host.id = 'qrManager';
-      host.className = 'stack';
-      host.style.marginTop = '8px';
-      host.innerHTML = `
-        <div class="chips" id="qrMgrRow">
-          ${inputEl ? '' : '<label for="qrTableNo_mgr">테이블 번호</label><input id="qrTableNo_mgr" type="number" min="1" placeholder="예: 12"/>'}
-          ${inputEl ? '' : '<button class="btn" id="btnQrGen_mgr">QR 생성</button>'}
-          <button class="btn" id="btnQrSave_mgr">저장</button>
-          <button class="btn" id="btnQrClear_mgr">전체 삭제</button>
-        </div>
-        <div id="qrPreview_mgr" style="margin-top:8px"></div>
-        <h4 style="margin:12px 0 4px">저장된 QR</h4>
-        <div id="qrSavedList" class="qr-grid"></div>
-      `;
-      container.appendChild(host);
-    }
-    return host;
-  }
-  function getText(inputEl){
-    if (inputEl) return String(inputEl.value||'').trim();
-    const mine = qs('qrTableNo_mgr'); return mine ? String(mine.value||'').trim() : '';
-  }
-  function ensurePreview(text, container){
-    const existing = getExistingPreview(container);
-    if (existing && (existing.tagName === 'CANVAS' || existing.tagName === 'IMG')) {
-      return existing;
-    }
-    const wrap = qs('qrPreview_mgr');
-    if (!wrap) return null;
-    wrap.innerHTML = '';
-    try{
-      const cvs = window.SimpleQR ? window.SimpleQR.make(text, 256) : null;
-      if (!cvs) { wrap.innerHTML = '<div class="small" style="color:#f88">QR 생성 라이브러리가 로드되지 않았습니다.</div>'; return null; }
-      wrap.appendChild(cvs);
-      return cvs;
-    }catch(e){
-      wrap.innerHTML = '<div class="small" style="color:#f88">QR 생성 실패: '+e.message+'</div>';
-      return null;
-    }
-  }
-  function renderSaved(){
-    const box = qs('qrSavedList'); if(!box) return;
-    const list = getList();
-    if(list.length===0){ box.innerHTML = '<div class="small" style="opacity:.7">저장된 QR이 없습니다. QR 생성 후 [저장]을 눌러 추가하세요.</div>'; return; }
-    box.innerHTML = '';
-    list.forEach((it,idx)=>{
-      const card = document.createElement('div'); card.className='qr-card';
-      const img = document.createElement('img'); img.src = it.dataUrl; img.alt = 'QR '+(it.table||'');
-      const meta = document.createElement('div'); meta.className='qr-meta'; meta.textContent = '테이블 ' + (it.table||'');
-      const acts = document.createElement('div'); acts.className='qr-actions';
-      const btnDl = document.createElement('button'); btnDl.className='btn'; btnDl.textContent='다운로드';
-      btnDl.onclick = ()=>{ const a=document.createElement('a'); a.href=it.dataUrl; a.download='qr_table_'+(it.table||idx)+'.png'; a.click(); };
-      const btnDel = document.createElement('button'); btnDel.className='btn'; btnDel.textContent='삭제';
-      btnDel.onclick = ()=>{ const l=getList().filter((_,i)=>i!==idx); setList(l); renderSaved(); };
-      acts.appendChild(btnDl); acts.appendChild(btnDel);
-      card.appendChild(img); card.appendChild(meta); card.appendChild(acts);
-      box.appendChild(card);
-    });
-  }
-  document.addEventListener('DOMContentLoaded', function(){
-    const container = findQrSection();
-    const inputEl = getExistingInput(container);
-    buildUI(container, inputEl);
-    const existingGenBtn = Array.from(container.querySelectorAll('button, input[type=button], a'))
-      .find(b => /생성|만들기|generate|create/i.test(b.textContent||b.value||''));
-    const ourGenBtn = document.getElementById('btnQrGen_mgr');
-    function doPreview(){
-      const txt = getText(inputEl);
-      if(!txt){ alert('테이블 번호를 입력하세요'); return null; }
-      return ensurePreview(txt, container);
-    }
-    if (existingGenBtn) {
-      existingGenBtn.addEventListener('click', function(){ setTimeout(doPreview, 50); });
-      if (ourGenBtn) ourGenBtn.style.display='none';
-    } else if (ourGenBtn) {
-      ourGenBtn.addEventListener('click', doPreview);
-    }
-    const saveBtn = document.getElementById('btnQrSave_mgr');
-    const clearBtn = document.getElementById('btnQrClear_mgr');
-    if (saveBtn) saveBtn.onclick = function(){
-      const txt = getText(inputEl);
-      if(!txt){ alert('테이블 번호를 입력하세요'); return; }
-      const prev = doPreview();
-      let dataUrl = null;
-      if (prev && prev.toDataURL) dataUrl = prev.toDataURL('image/png');
-      else if (prev && prev.tagName==='IMG') dataUrl = prev.src;
-      if (!dataUrl){ alert('QR 미리보기를 생성할 수 없습니다.'); return; }
-      const l = getList();
-      const idx = l.findIndex(x=> String(x.table||'')===String(txt));
-      const item = {table:String(txt), dataUrl:dataUrl, ts:Date.now()};
-      if(idx>=0) l[idx]=item; else l.push(item);
-      setList(l); renderSaved();
-    };
-    if (clearBtn) clearBtn.onclick = function(){
-      if(confirm('저장된 QR을 모두 삭제할까요?')){ setList([]); renderSaved(); }
-    };
-    renderSaved();
-  });
-})();
-</script>
-
-
-
-
-
-
-
-
-<script>
-(function(){
-  // Cleanup helper
-  if (window.__QR_QRCLEAN && window.__QR_QRCLEAN.v1) return;
-  window.__QR_QRCLEAN = { v1:true };
-
+  function qs(sel, root){ return (root||document).querySelector(sel); }
+  function qsa(sel, root){ return Array.from((root||document).querySelectorAll(sel)); }
   function visible(el){ return el && el.offsetParent !== null; }
-  function $all(root, sel){ return Array.from((root||document).querySelectorAll(sel)); }
 
-  function findQrSection(){
-    const headings = $all(document, 'h1,h2,h3,h4');
-    let h = headings.find(el => /QR\s*(배포|생성)/i.test(el.textContent||''));
-    if(!h) h = headings.find(el => /QR/i.test(el.textContent||''));
+  function findQrCard(){
+    const heads = qsa('h1,h2,h3');
+    let h = heads.find(el => /QR\s*배포/.test(el.textContent||'')) || heads.find(el => /QR\s*생성/.test(el.textContent||''));
     const card = h ? (h.closest('.card') || h.parentElement) : null;
     return card || document.body;
   }
-  function getPreview(container){
-    const nodes = $all(container, 'canvas, img').filter(visible);
-    let best=null, bestScore=0;
-    nodes.forEach(n=>{
-      const r = n.getBoundingClientRect();
-      const area = Math.max(1, r.width*r.height);
-      const ratio = r.width && r.height ? (r.width/r.height) : 1;
-      const square = 1 - Math.min(1, Math.abs(1 - ratio));
-      const score = area * (0.7 + 0.3*square);
-      if (score > bestScore){ best = n; bestScore = score; }
-    });
-    return best || null;
-  }
 
-  function ensureSavedGridAfterPreview(container){
-    let grid = document.getElementById('qrSavedList');
-    let title = document.querySelector('h4[data-qr-saved-title]');
-    const prev = getPreview(container);
-
-    if (!grid){
-      grid = document.createElement('div'); grid.id='qrSavedList'; grid.className='qr-grid';
-    }
-    if (!title){
-      title = document.createElement('h4'); title.textContent='저장된 QR'; title.dataset.qrSavedTitle='1'; title.style.margin='12px 0 4px';
-    }
-    if (prev){
-      // Place immediately after preview element
-      if (prev.nextSibling){
-        prev.parentNode.insertBefore(title, prev.nextSibling);
-        title.parentNode.insertBefore(grid, title.nextSibling);
+  function ensureControls(card){
+    const input = qsa('input[placeholder*="테이블"]', card).find(visible)
+               || qsa('input[type=number]', card).find(visible)
+               || qsa('input[type=text]', card).find(visible);
+    const genBtn = qsa('button,a,input[type=button]', card).find(b => /QR\s*생성/.test((b.textContent||b.value||'')));
+    let saveBtn = qs('#btnQrSaveTop', card);
+    if (!saveBtn){
+      saveBtn = document.createElement(genBtn && genBtn.tagName==='A' ? 'a' : 'button');
+      saveBtn.id = 'btnQrSaveTop';
+      saveBtn.className = genBtn ? (genBtn.className||'btn') : 'btn';
+      saveBtn.textContent = 'QR 저장';
+      if (genBtn && genBtn.parentNode){
+        genBtn.parentNode.insertBefore(saveBtn, genBtn.nextSibling ? genBtn.nextSibling.nextSibling || genBtn.nextSibling : null);
       } else {
-        prev.parentNode.appendChild(title);
-        prev.parentNode.appendChild(grid);
+        card.insertBefore(saveBtn, card.firstChild);
       }
-    } else {
-      // fallback: append in container
-      container.appendChild(title);
-      container.appendChild(grid);
     }
+    let prevWrap = qs('#qrPreviewDet', card);
+    if (!prevWrap){
+      prevWrap = document.createElement('div'); prevWrap.id = 'qrPreviewDet'; prevWrap.style.marginTop='8px';
+      if (genBtn && genBtn.parentNode) genBtn.parentNode.parentNode.insertBefore(prevWrap, genBtn.parentNode.nextSibling);
+      else card.appendChild(prevWrap);
+    }
+    let title = qs('h4[data-det-saved]', card);
+    let grid  = qs('#qrSavedList', card);
+    if (title) title.remove();
+    if (grid) grid.remove();
+    title = document.createElement('h4'); title.dataset.detSaved='1'; title.textContent='저장된 QR'; title.style.margin='12px 0 4px'; prevWrap.after(title);
+    grid  = document.createElement('div'); grid.id='qrSavedList'; grid.className='qr-grid'; title.after(grid);
+    return {input, genBtn, saveBtn, prevWrap, grid};
   }
 
-  function removeBottomControls(container){
-    const prev = getPreview(container);
-    const badTexts = ['저장', '전체 삭제'];
-    // Find buttons below preview that are not our top "QR 저장" (id=btnQrSaveTop)
-    const buttons = $all(container, 'button, a').filter(b=>{
-      const t=(b.textContent||b.value||'').trim();
-      if (b.id === 'btnQrSaveTop') return false;
-      // only elements below the preview in the DOM tree order
-      if (prev && prev.compareDocumentPosition) {
-        const pos = prev.compareDocumentPosition(b);
-        const isFollowing = !!(pos & Node.DOCUMENT_POSITION_FOLLOWING);
-        if (!isFollowing) return false;
-      }
-      return badTexts.includes(t);
+  function makeQR(text, size){
+    if (window.SimpleQR){ try{ return window.SimpleQR.make(text, size||256); }catch(_){ } }
+    var cvs = document.createElement('canvas'); cvs.width=cvs.height=size||256;
+    var ctx=cvs.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,cvs.width,cvs.height);
+    ctx.fillStyle='#000'; ctx.fillRect(0,0,8,8); return cvs;
+  }
+  function renderPreview(prevWrap, text){ prevWrap.innerHTML=''; const cvs=makeQR(text,256); prevWrap.appendChild(cvs); return cvs; }
+
+  function getList(){ try{ return JSON.parse(localStorage.getItem('__qr_saved_list')||'[]'); }catch(_){ return []; } }
+  function setList(lst){ localStorage.setItem('__qr_saved_list', JSON.stringify(lst)); }
+
+  function renderGrid(grid){
+    const list = getList();
+    if(!list.length){ grid.innerHTML='<div class="small" style="opacity:.7">저장된 QR이 없습니다. QR 생성 후 [QR 저장]을 눌러 추가하세요.</div>'; return; }
+    grid.innerHTML='';
+    list.forEach((it,idx)=>{
+      const card = document.createElement('div'); card.className='qr-card';
+      const img  = document.createElement('img'); img.src=it.dataUrl; img.alt='QR '+(it.table||'');
+      const meta = document.createElement('div'); meta.className='qr-meta'; meta.textContent='테이블 '+(it.table||'');
+      const acts = document.createElement('div'); acts.className='qr-actions';
+      const btnDl = document.createElement('button'); btnDl.className='btn'; btnDl.textContent='다운로드';
+      btnDl.onclick=()=>{ const a=document.createElement('a'); a.href=it.dataUrl; a.download='qr_table_'+(it.table||idx)+'.png'; a.click(); };
+      const btnDel=document.createElement('button'); btnDel.className='btn'; btnDel.textContent='삭제';
+      btnDel.onclick=()=>{ const l=getList().filter((_,i)=>i!==idx); setList(l); renderGrid(grid); };
+      acts.appendChild(btnDl); acts.appendChild(btnDel);
+      card.appendChild(img); card.appendChild(meta); card.appendChild(acts);
+      grid.appendChild(card);
     });
-    buttons.forEach(b=>{ b.remove(); });
   }
 
-  document.addEventListener('DOMContentLoaded', function(){
-    const container = findQrSection();
-    try{ ensureSavedGridAfterPreview(container); }catch(_) {}
-    try{ removeBottomControls(container); }catch(_) {}
-  });
+  function main(){
+    const card = findQrCard();
+    const ui = ensureControls(card);
+    // Remove any leftover legacy blocks
+    qsa('#qrManager, #qrMgrRow, #btnQrGen_mgr, #btnQrClear_mgr').forEach(n=>n && n.remove());
+    if (ui.genBtn){
+      ui.genBtn.addEventListener('click', ()=>{
+        setTimeout(()=>{
+          const val=(ui.input && ui.input.value || '').trim();
+          if(!val) return;
+          renderPreview(ui.prevWrap, val);
+        }, 50);
+      });
+    }
+    ui.saveBtn.addEventListener('click', ()=>{
+      const val = (ui.input && ui.input.value || '').trim();
+      if(!val){ alert('테이블 번호를 입력하세요'); return; }
+      const cvs = renderPreview(ui.prevWrap, val);
+      const dataUrl = cvs.toDataURL('image/png');
+      const list = getList();
+      const idx = list.findIndex(x=> String(x.table||'')===String(val));
+      const item = {table:String(val), dataUrl, ts:Date.now()};
+      if (idx>=0) list[idx]=item; else list.push(item);
+      setList(list);
+      renderGrid(ui.grid);
+    });
+    renderGrid(ui.grid);
+  }
+  document.addEventListener('DOMContentLoaded', main);
 })();
 </script>
 
