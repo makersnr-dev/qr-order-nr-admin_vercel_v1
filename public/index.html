@@ -195,6 +195,7 @@ var HAS_TOKEN=!!(window.localStorage&&localStorage.getItem('adminToken'));
 function $(s,r){return(r||document).querySelector(s);}function $all(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));}
 function textOf(e){return(e&&(e.textContent||e.innerText||e.value||'')).trim();}function visible(e){return e&&e.offsetParent!==null&&!e.disabled;}
 function now(){return (new Date()).getTime();}
+function ymd(ts){ var d=ts?new Date(ts):new Date(); var y=d.getFullYear(); var m=('0'+(d.getMonth()+1)).slice(-2); var a=('0'+d.getDate()).slice(-2); return y+'-'+m+'-'+a; }
 
 function findCard(){
   var c=document.getElementById('pane-qr'); 
@@ -231,8 +232,19 @@ function render(grid){
     var meta=document.createElement('div'); meta.className='qr-meta'; meta.textContent='테이블 '+(it.table||'');
     var acts=document.createElement('div'); acts.className='qr-actions';
     var bdl=document.createElement('button'); bdl.className='btn'; bdl.textContent='다운로드';
-    bdl.onclick=(function(u,t,idx){ return function(){ fetch(u).then(r=>r.blob()).then(b=>{ var o=URL.createObjectURL(b); var a=document.createElement('a'); a.href=o; a.download='qr_table_'+(t||idx)+'.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(o), 4000); }).catch(()=>{ var a2=document.createElement('a'); a2.href=u; a2.target='_blank'; a2.rel='noopener'; a2.click(); }); }; })(img.src,it.table,i);
-    var brm=document.createElement('button'); brm.className='btn'; brm.textContent='삭제';
+    (function(u,t,ts,idx){
+      bdl.onclick=function(){
+        fetch(u).then(r=>r.blob()).then(b=>{
+          var o=URL.createObjectURL(b);
+          var name='qr'+(t?('_'+t):'')+'_'+ymd(ts||now())+'.png';
+          var a=document.createElement('a'); a.href=o; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(()=>URL.revokeObjectURL(o), 4000);
+        }).catch(()=>{
+          var a2=document.createElement('a'); a2.href=u; a2.target='_blank'; a2.rel='noopener'; a2.click();
+        });
+      };
+    })(img.src,it.table,it.ts,i);
+        var brm=document.createElement('button'); brm.className='btn'; brm.textContent='삭제';
     brm.onclick=(function(idx){return function(){ var l=getList().filter(function(_,j){return j!==idx;}); setList(l); render(grid); };})(i);
     acts.appendChild(bdl); acts.appendChild(brm);
     cd.appendChild(img); cd.appendChild(meta); cd.appendChild(acts); grid.appendChild(cd);
@@ -248,7 +260,9 @@ function wireDownload(card,ui){
   function handle(ev){
     if(ev){ ev.preventDefault(); ev.stopPropagation(); }
     var src=currentImgUrl(card); if(!src) return;
-    fetch(src).then(r=>r.blob()).then(b=>{ var o=URL.createObjectURL(b); var a=document.createElement('a'); a.href=o; a.download='qr_table.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(o), 4000); }).catch(()=>{ var a2=document.createElement('a'); a2.href=src; a2.target='_blank'; a2.rel='noopener'; a2.click(); });
+    var t=(function(){ var inp=document.querySelector('#pane-qr input')||document.querySelector('input'); return (inp&&inp.value)||''; })();
+    var fname='qr'+(t?('_'+t.trim()):'')+'_'+ymd(now())+'.png';
+    fetch(src).then(r=>r.blob()).then(b=>{ var o=URL.createObjectURL(b); var a=document.createElement('a'); a.href=o; a.download=fname; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(o), 4000); }).catch(()=>{ var a2=document.createElement('a'); a2.href=src; a2.target='_blank'; a2.rel='noopener'; a2.click(); });
   }
   if(ui.dl){ ui.dl.addEventListener('click', handle, true); }
   var img=$('#qrImg',card); if(img){ img.style.cursor='pointer'; img.title='클릭하면 PNG로 다운로드'; img.addEventListener('click', handle, true); }
