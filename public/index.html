@@ -272,8 +272,29 @@ function notifyBrowser(title, body){ try{ if(!('Notification' in window)) return
 function dedup(key){ NT.lastKeys.push({key,ts:Date.now()}); if(NT.lastKeys.length>NT.maxKeys) NT.lastKeys.shift(); const recent=NT.lastKeys.filter(x=>Date.now()-x.ts<5000).map(x=>x.key); return recent.filter(k=>k===key).length<=1; }
 function attachButtons(){ const btnE=document.getElementById('ntEnableSound'); if(btnE){ btnE.onclick=function(){ enableBeep(); beep(); log('소리 활성화됨'); }; } const btnT=document.getElementById('ntTestSound'); if(btnT){ btnT.onclick=function(){ enableBeep(); beep(); log('소리 테스트'); }; } const btnP=document.getElementById('ntAskPerm'); if(btnP){ btnP.onclick=function(){ try{ const perm=(window.Notification&&Notification.permission)||'unsupported'; if(perm==='granted'){ setPerm(); syncPermBtn(); log('브라우저 알림: 이미 허용됨'); return;} if(perm==='denied'){ setPerm(); syncPermBtn(); log('브라우저 알림: 차단됨 (브라우저 설정에서 변경 필요)'); return;} Notification.requestPermission().then(p=>{ setPerm(); syncPermBtn(); if(p==='granted'){ notifyBrowser('알림 켜짐','이제 직원 호출 알림을 받습니다.'); } }); }catch(_){ setPerm(); syncPermBtn(); } }; } const btnB=document.getElementById('ntTestBrowser'); if(btnB){ btnB.onclick=function(){ notifyBrowser('테스트 알림','브라우저 알림이 동작 중입니다.'); beep(); }; } }
 function parsePayload(data){ try{ return JSON.parse(data); }catch(_){ return { message: data }; } }
+function handleOrder(payload){
+  try{
+    var t = payload.table || payload.tableNo || payload.t || '';
+    var key = 'order:' + String(t||'') + ':' + (payload.id || payload.orderId || payload.createdAt || payload.ts || '');
+    if(!dedup(key)) return;
+    beep();
+    var title = '신규 주문';
+    var body = (t?('테이블 '+t+' 주문이 접수되었습니다.'):'주문이 접수되었습니다.');
+    notifyBrowser(title, body);
+    log('[신규 주문] ' + (t?('테이블 '+t):''));
+  }catch(_){}
+}
 function handleCall(payload){ const table = payload.table || payload.tableNo || payload.t || ''; const key = 'call:'+String(table||'')+':'+(payload.at||payload.id||payload.ts||''); if(!dedup(key)) return; beep(); notifyBrowser('직원 호출', (table?('테이블 '+table+'에서 호출'): '직원 호출') ); try{ log('[직원 호출] '+ (table?('테이블 '+table):'')); }catch(_){ } }
-function wireSSE(){ if(!window.EventSource){ setConn('down'); return;} setConn('checking'); const base=(window.API||''); const endpoints=['/events/orders','/events','/sse']; let connected=false,tried=0; function tryNext(){ if(connected||tried>=endpoints.length){ if(!connected) setConn('down'); return;} const ep=endpoints[tried++]; try{ const es=new EventSource(base+ep); es.addEventListener('open',()=>{ connected=true; setConn('ok'); log('SSE 연결: '+ep); }); es.addEventListener('error',()=>{ if(!connected){ log('SSE 실패: '+ep); es.close(); tryNext(); } }); ['staff','staff_call','assist','call','notify','message','order'].forEach(function(ev){ es.addEventListener(ev,function(e){ const p=parsePayload(e.data||''); if(p && (String(p.type||'').toLowerCase().includes('staff') || ev==='staff' || ev==='staff_call' || ev==='assist' || ev==='call')) handleCall(p); }); }); es.onmessage=function(e){ const p=parsePayload(e.data||''); if(p && (p.type==='staff_call'||p.kind==='staff_call'||p.event==='staff_call')) handleCall(p); }; }catch(_){ tryNext(); } } tryNext(); }
+function wireSSE(){ if(!window.EventSource){ setConn('down'); return;} setConn('checking'); const base=(window.API||''); const endpoints=['/events/orders','/events','/sse']; let connected=false,tried=0; function tryNext(){ if(connected||tried>=endpoints.length){ if(!connected) setConn('down'); return;} const ep=endpoints[tried++]; try{ const es=new EventSource(base+ep); es.addEventListener('open',()=>{ connected=true; setConn('ok'); log('SSE 연결: '+ep); }); es.addEventListener('error',()=>{ if(!connected){ log('SSE 실패: '+ep); es.close(); tryNext(); } }); (['staff','staff_call','assist','call','notify','message','order','orders','new-order','order_created','created'].forEach)(function(ev){ es.addEventListener(ev,function(e){ const p=parsePayload(e.data||''); if(p && (String(p.type||'').toLowerCase().includes('staff') || ev==='staff' || ev==='staff_call' || ev==='assist' || ev==='call')) handleCall(p); }); }); es.onmessage=function(e){
+      try{
+        const p=parsePayload(e.data||'');
+        if(p){
+          const t=(p.type||p.kind||p.event||'').toLowerCase();
+          if(t.indexOf('staff_call')>=0 || t==='staff' || t==='call'){ handleCall(p); }
+          else if (t.indexOf('order')>=0){ handleOrder(p); }
+        }
+      }catch(_){}
+    }; }catch(_){ tryNext(); } } tryNext(); }
 document.addEventListener('DOMContentLoaded', function(){ try{ NT.enabled = localStorage.getItem(SKEY)==='1'; }catch(_){ } setPerm(); syncPermBtn(); attachButtons(); wireSSE(); });
 })();</script>
 
