@@ -18,7 +18,7 @@
   .pill.warn{background:#2a160b;border-color:#4e331f;color:#ffd9b3}
   .muted{color:var(--muted)} .hidden{display:none}
 
-/* === QR 배포 보조 UI (v5.10) === */
+/* === QR 배포 보조 UI (v5.11) === */
 .qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:8px}
 .qr-card{background:#0e1a26;border:1px solid #234;border-radius:12px;padding:10px;text-align:center}
 .qr-card img{width:100%;height:auto;image-rendering:pixelated}
@@ -30,7 +30,6 @@
 #qrPreviewImg{max-width:256px;width:100%;border-radius:8px;display:none}
 #qrPreviewHint{opacity:.65;font-size:.9em;margin:6px 0 0}
 .qr-hidden-source{display:none !important;width:0 !important;height:0 !important;overflow:hidden !important;}
-/* cleanup helper */
 .qr-legacy-hide{display:none !important;}
 
 </style>
@@ -198,14 +197,12 @@ copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.
 init();
 </script>
 
-<script>(function(){if(window.__QR_CTRL_510)return;window.__QR_CTRL_510=true;
+<script>(function(){if(window.__QR_CTRL_511)return;window.__QR_CTRL_511=true;
 function $(s,r){return(r||document).querySelector(s)}function $all(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
 function textOf(e){return(e&&(e.textContent||e.value||'')).replace(/^\s+|\s+$/g,'')}function visible(e){return e&&e.offsetParent!==null&&!e.disabled}
 function now(){return (new Date()).getTime()}
-
 function findQrCard(){var h=$all('h1,h2,h3,h4'),i,x=null;for(i=0;i<h.length;i++){if(/QR\s*배포/.test(textOf(h[i]))){x=h[i];break}}if(!x){for(i=0;i<h.length;i++){if(/QR\s*생성/.test(textOf(h[i]))){x=h[i];break}}}return x?((x.closest&&(x.closest('.card')||x.parentElement))||x.parentElement):document.body}
 function findGenBtn(c){var b=$all('button,a,input[type=button]',c),i;for(i=0;i<b.length;i++){if(/QR\s*생성/i.test(textOf(b[i])))return b[i]}for(i=0;i<b.length;i++){if(/(생성|generate|create)/i.test(textOf(b[i])))return b[i]}return null}
-
 function ensureUI(c){
   var g=findGenBtn(c);
   var w=$('#qrPreviewDet',c); if(!w){w=document.createElement('div');w.id='qrPreviewDet'; if(g&&g.parentNode) g.parentNode.parentNode.insertBefore(w,g.parentNode.nextSibling); else c.insertBefore(w,c.firstChild)}
@@ -215,14 +212,12 @@ function ensureUI(c){
   var t=$('h4[data-det-saved]',c); if(!t){t=document.createElement('h4');t.setAttribute('data-det-saved','1'); t.appendChild(document.createTextNode('저장된 QR')); w.parentNode.insertBefore(t,w.nextSibling)}
   var grid=$('#qrSavedList',c); if(!grid){grid=document.createElement('div');grid.id='qrSavedList';grid.className='qr-grid'; t.parentNode.insertBefore(grid,t.nextSibling)}
   var save=$('#btnQrSaveTop',c); if(!save){save=document.createElement('button');save.id='btnQrSaveTop';save.className=g?(g.className||'btn'):'btn';save.appendChild(document.createTextNode('QR 저장')); if(g&&g.parentNode){var p=g.parentNode; if(g.nextSibling)p.insertBefore(save,g.nextSibling.nextSibling||g.nextSibling); else p.appendChild(save)} else c.insertBefore(save,c.firstChild)}
-  // legacy cleanup: hide any sibling blocks under the saved section that aren't our grid
   try{
     var savedSection=t.parentNode; 
     var kids=$all(':scope > *', savedSection);
     for(var i=0;i<kids.length;i++){
       var k=kids[i];
       if(k.id==='qrSavedList' || k===t) continue;
-      // if it has '다운로드' & '삭제' 버튼이 있고 이미지가 거의 없으면 숨김
       var hasButtons=$all('button',k).some(function(b){var s=textOf(b);return /다운로드|삭제/.test(s)});
       var hasImg=$all('img,canvas,svg',k).length>0;
       if(hasButtons && !hasImg){ k.classList.add('qr-legacy-hide'); }
@@ -230,8 +225,6 @@ function ensureUI(c){
   }catch(e){}
   return {genBtn:g,saveBtn:save,canvas:cv,img:im,grid:grid,hint:hint}
 }
-
-// robust size even when hidden
 function sizeInfo(n){
   var w=0,h=0; if(n.getBoundingClientRect){ var r=n.getBoundingClientRect(); w=r.width; h=r.height; }
   if(!(w>0 && h>0)){
@@ -251,7 +244,7 @@ function sizeInfo(n){
 function findRealQR(c){
   var nodes=$all('canvas, img, svg',c).filter(function(n){
     var isHidden=n.classList.contains('qr-hidden-source');
-    if(isHidden) return true; // include hidden too
+    if(isHidden) return true;
     return visible(n) && n.id!=='qrPreviewCanvas' && n.id!=='qrPreviewImg' && !n.closest('#qrPreviewDet');
   });
   var best=null,score=0,i; for(i=0;i<nodes.length;i++){ var s=sizeInfo(nodes[i]); if(s.score>score){ best=nodes[i]; score=s.score; } }
@@ -273,6 +266,58 @@ function showPreviewFrom(el,ui){
   if(el.tagName && el.tagName.toLowerCase()==='svg'){ try{ var s=(new XMLSerializer()).serializeToString(el); var enc='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s); ui.img.src=enc; showOnly(ui.img); el.classList.add('qr-hidden-source'); return {kind:'svg',src:enc} }catch(e){ ui.hint.style.display='block'; return {kind:'none'}; } }
   ui.hint.style.display='block'; return {kind:'none'};
 }
+function getList(){ try{return JSON.parse(localStorage.getItem('__qr_saved_list')||'[]')}catch(e){return[]} }
+function setList(l){ localStorage.setItem('__qr_saved_list', JSON.stringify(l)); }
+function getQrUrlBuilder(card){
+  try{
+    var imgs=$all('img',card).concat($all('img',document.body));
+    var cand=imgs.find(function(im){ var s=im.getAttribute('src')||''; return /(?:^|\\/|\\?)qr(?:\\?|$)/i.test(s); });
+    if(!cand) return null;
+    var u=new URL(cand.src, location.href);
+    var params=new URLSearchParams(u.search);
+    var key= params.has('table')?'table':(params.has('t')?'t':'table');
+    return function(table, size){
+      var u2=new URL(u.href);
+      var p=new URLSearchParams(u2.search);
+      p.set(key, String(table));
+      if(size){ p.set('size', String(size)); }
+      u2.search='?'+p.toString();
+      return u2.toString();
+    }
+  }catch(e){ return null; }
+}
+function healMissing(list, card){
+  var build=getQrUrlBuilder(card);
+  if(!build) return list;
+  var changed=false;
+  for(var i=0;i<list.length;i++){
+    var it=list[i];
+    if(!it.dataUrl && !it.url && it.table){
+      it.url = build(it.table, 220); changed=true;
+    }
+  }
+  if(changed) setList(list);
+  return list;
+}
+function render(grid, card){
+  var list=getList();
+  list = healMissing(list, card);
+  if(!list.length){ grid.innerHTML='<div class="small" style="opacity:.7">저장된 QR이 없습니다. QR 생성 후 [QR 저장]을 눌러 추가하세요.</div>'; return; }
+  grid.innerHTML='';
+  for(var i=0;i<list.length;i++){
+    var it=list[i]; var cd=document.createElement('div'); cd.className='qr-card';
+    var img=document.createElement('img'); img.src=(it.dataUrl||it.url||''); img.alt='QR '+(it.table||'');
+    var meta=document.createElement('div'); meta.className='qr-meta'; meta.appendChild(document.createTextNode('테이블 '+(it.table||'')));
+    var acts=document.createElement('div'); acts.className='qr-actions';
+    var dl=document.createElement('button'); dl.className='btn'; dl.appendChild(document.createTextNode('다운로드'));
+    if(it.dataUrl){ dl.onclick=(function(u,t,idx){return function(){ var a=document.createElement('a'); a.href=u; a.download='qr_table_'+(t||idx)+'.png'; a.click(); }})(it.dataUrl,it.table,i); }
+    else if(it.url){ dl.onclick=(function(u){ return function(){ var a=document.createElement('a'); a.href=u; a.target='_blank'; a.rel='noopener'; a.click(); };})(it.url); }
+    else { dl.disabled=true; }
+    var rm=document.createElement('button'); rm.className='btn'; rm.appendChild(document.createTextNode('삭제'));
+    rm.onclick=(function(idx){ return function(){ var l=getList().filter(function(_,j){return j!==idx}); setList(l); render(grid, card); };})(i);
+    acts.appendChild(dl); acts.appendChild(rm); cd.appendChild(img); cd.appendChild(meta); cd.appendChild(acts); grid.appendChild(cd);
+  }
+}
 function wirePreviewDownload(card,ui){
   var link=null, els=$all('a,button',card), i; for(i=0;i<els.length;i++){ if(/PNG\\s*다운로드/i.test(textOf(els[i]))){ link=els[i]; break; } }
   if(!link) return;
@@ -282,51 +327,28 @@ function wirePreviewDownload(card,ui){
     if(ui.img.style.display==='block' && ui.img.src){ var a2=document.createElement('a'); a2.href=ui.img.src; a2.target='_blank'; a2.rel='noopener'; a2.click(); }
   }, true);
 }
-function getList(){ try{return JSON.parse(localStorage.getItem('__qr_saved_list')||'[]')}catch(e){return[]} }
-function setList(l){ localStorage.setItem('__qr_saved_list', JSON.stringify(l)); }
-function render(grid){
-  var list=getList(); if(!list.length){ grid.innerHTML='<div class="small" style="opacity:.7">저장된 QR이 없습니다. QR 생성 후 [QR 저장]을 눌러 추가하세요.</div>'; return; }
-  grid.innerHTML=''; for(var i=0;i<list.length;i++){
-    var it=list[i]; var cd=document.createElement('div'); cd.className='qr-card';
-    var img=document.createElement('img'); img.src=it.dataUrl||it.url||''; img.alt='QR '+(it.table||'');
-    var meta=document.createElement('div'); meta.className='qr-meta'; meta.appendChild(document.createTextNode('테이블 '+(it.table||'')));
-    var acts=document.createElement('div'); acts.className='qr-actions';
-    var dl=document.createElement('button'); dl.className='btn'; dl.appendChild(document.createTextNode('다운로드'));
-    if(it.dataUrl){ dl.onclick=(function(u,t,idx){return function(){ var a=document.createElement('a'); a.href=u; a.download='qr_table_'+(t||idx)+'.png'; a.click(); }})(it.dataUrl,it.table,i); }
-    else if(it.url){ dl.onclick=(function(u){ return function(){ var a=document.createElement('a'); a.href=u; a.target='_blank'; a.rel='noopener'; a.click(); };})(it.url); }
-    else { dl.disabled=true; }
-    var rm=document.createElement('button'); rm.className='btn'; rm.appendChild(document.createTextNode('삭제'));
-    rm.onclick=(function(idx){ return function(){ var l=getList().filter(function(_,j){return j!==idx}); setList(l); render(grid); };})(i);
-    acts.appendChild(dl); acts.appendChild(rm); cd.appendChild(img); cd.appendChild(meta); cd.appendChild(acts); grid.appendChild(cd);
-  }
-}
-
 document.addEventListener('DOMContentLoaded', function(){
   var card=findQrCard(); var ui=ensureUI(card);
   function sync(){ var src=findRealQR(card); showPreviewFrom(src, ui); wirePreviewDownload(card, ui); }
   var mo=new MutationObserver(function(){ setTimeout(sync, 40); }); mo.observe(card, {childList:true, subtree:true});
   var g=findGenBtn(card); if(g){ g.addEventListener('click', function(){ setTimeout(sync, 80); }); }
-
   ui.saveBtn.addEventListener('click', function(){
-    // ensure latest preview ready
     sync();
     setTimeout(function(){
       var gen=findGenBtn(card);
       var input=(function(){ if(gen&&gen.parentNode){ var p=gen.previousElementSibling, hop=0; while(p&&hop<4){ if(p.tagName&&p.tagName.toUpperCase()==='INPUT'&&visible(p)) return p; var c=$('input',p); if(c&&visible(c)) return c; p=p.previousElementSibling; hop++; } var cand=$all('input',gen.parentNode).filter(visible)[0]; if(cand) return cand; } var c2=$all('input[type=number],input[type=text]', card).filter(visible)[0]; return c2 || null; })();
       var val=(input&&input.value||'').replace(/^\s+|\s+$/g,''); if(!val){ alert('테이블 번호를 입력하세요'); return; }
-
-      if(ui.canvas.style.display==='block'){ try{ var dataUrl=ui.canvas.toDataURL('image/png'); var list=getList(); var i,idx=-1; for(i=0;i<list.length;i++){ if(String(list[i].table||'')===String(val)){ idx=i; break; } } var item={table:String(val), dataUrl:dataUrl, ts:now()}; if(idx>=0) list[idx]=item; else list.push(item); setList(list); render(ui.grid); return; }catch(e){} }
-      if(ui.img.style.display==='block' && ui.img.src){ var list2=getList(); var j,jdx=-1; for(j=0;j<list2.length;j++){ if(String(list2[j].table||'')===String(val)){ jdx=j; break; } } var item2={table:String(val), url:ui.img.src, ts:now()}; if(jdx>=0) list2[jdx]=item2; else list2.push(item2); setList(list2); render(ui.grid); return; }
+      if(ui.canvas.style.display==='block'){ try{ var dataUrl=ui.canvas.toDataURL('image/png'); var list=getList(); var i,idx=-1; for(i=0;i<list.length;i++){ if(String(list[i].table||'')===String(val)){ idx=i; break; } } var item={table:String(val), dataUrl:dataUrl, ts:now()}; if(idx>=0) list[idx]=item; else list.push(item); setList(list); render(ui.grid, card); return; }catch(e){} }
+      if(ui.img.style.display==='block' && ui.img.src){ var list2=getList(); var j,jdx=-1; for(j=0;j<list2.length;j++){ if(String(list2[j].table||'')===String(val)){ jdx=j; break; } } var item2={table:String(val), url:ui.img.src, ts:now()}; if(jdx>=0) list2[jdx]=item2; else list2.push(item2); setList(list2); render(ui.grid, card); return; }
       alert('먼저 QR 생성 버튼을 눌러 미리보기를 확인하세요.');
-    }, 100);
+    }, 120);
   });
-
-  render(ui.grid); sync();
+  render(ui.grid, card); sync();
 });
 })();</script>
 
 
-<script>(function(){if(window.__FORM_ID_FIX_510)return;window.__FORM_ID_FIX_510=true;
+<script>(function(){if(window.__FORM_ID_FIX_511)return;window.__FORM_ID_FIX_511=true;
 function visible(el){return el && el.offsetParent!==null && !el.disabled}
 document.addEventListener('DOMContentLoaded',function(){
   var n=0; var nodes=document.querySelectorAll('input,select,textarea');
