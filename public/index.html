@@ -211,7 +211,7 @@ setInterval(updateRemain, 60000);
 async function loadDailyCode(){
   if(!TOKEN) return;
   try{
-    const r=await fetch(api('/daily-code'), { headers: authHeaders() });
+    const r=await fetch('/api/daily-code', { headers: authHeaders() });
     if(!r.ok) return; // silent
     const j=await r.json();
     dcDate.textContent='('+j.date+')'; dcCode.value=j.code;
@@ -219,8 +219,8 @@ async function loadDailyCode(){
     updateRemain();
   }catch(e){ /* silent */ }
 }
-regenBtn.onclick = async ()=>{ if(!TOKEN){ location.href='/login'; return; } const r=await fetch(api('/daily-code/regen'), { method:'POST', headers: authHeaders() }); if(r.ok){ await loadDailyCode(); alert('오늘의 새 코드가 발급되었습니다.'); } };
-clearBtn.onclick = async ()=>{ if(!TOKEN){ location.href='/login'; return; } const r=await fetch(api('/daily-code/clear'), { method:'POST', headers: authHeaders() }); if(r.ok){ await loadDailyCode(); alert('기본 코드로 되돌렸습니다.'); } };
+regenBtn.onclick = async ()=>{ if(!TOKEN){ location.href='/login'; return; } const r=await fetch('/api/daily-code/regen', { method:'POST', headers: authHeaders() }); if(r.ok){ await loadDailyCode(); alert('오늘의 새 코드가 발급되었습니다.'); } };
+clearBtn.onclick = async ()=>{ if(!TOKEN){ location.href='/login'; return; } const r=await fetch('/api/daily-code/clear', { method:'POST', headers: authHeaders() }); if(r.ok){ await loadDailyCode(); alert('기본 코드로 되돌렸습니다.'); } };
 copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.clipboard?.writeText(dcCode.value).then(()=> alert('복사되었습니다.')); };
 
 init();
@@ -342,7 +342,7 @@ init();
     // Use existing global 'es' if available; else create our own EventSource to the admin's proxy endpoint
     if (typeof es === 'undefined' || !es) {
       if (!NS.es) {
-        const eventsUrl = '/events/orders';
+        const eventsUrl = '/api/events-orders';
         NS.es = new EventSource(eventsUrl);
       }
     } else {
@@ -488,7 +488,7 @@ init();
   NS.startSSE = function(){
     try{
       if (NS.es) { try{ NS.es.close(); }catch(_){ } }
-      const url = '/events/orders';
+      const url = '/api/events-orders';
       const es = new EventSource(url);
       NS.es = es;
       NS._retries = 0;

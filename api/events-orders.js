@@ -1,50 +1,27 @@
-import http from 'http';
-import https from 'https';
-import { URL } from 'url';
+export const config = { runtime: 'edge' };
 
-export default function handler(req, res) {
-  try {
+export default async function handler(req) {
+  try{
     const apiBase = process.env.API_BASE;
-    if (!apiBase) {
-      res.statusCode = 500;
-      return res.end('API_BASE is not set');
+    if (!apiBase) return new Response('API_BASE is not set', { status: 500 });
+
+    const url = new URL('/events/orders', apiBase).toString();
+    const upstream = await fetch(url, { cache: 'no-store' });
+    if (!upstream.ok) {
+      const txt = await upstream.text();
+      return new Response(txt, { status: upstream.status });
     }
-    // Target: <API_BASE>/events/orders
-    const target = new URL('/events/orders', apiBase).toString();
 
-    // Prepare SSE headers
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.setHeader('Vary', 'Origin');
-
-    const mod = target.startsWith('https:') ? https : http;
-    const upstream = mod.request(target, {
-      method: 'GET',
-      headers: { Accept: 'text/event-stream' },
-    }, (up) => {
-      up.on('data', (chunk) => {
-        try { res.write(chunk); } catch (_) {}
-      });
-      up.on('end', () => {
-        try { res.end(); } catch (_) {}
-      });
+    const headers = new Headers({
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      // Allow embedding if needed
+      'X-Accel-Buffering': 'no'
     });
 
-    upstream.on('error', (err) => {
-      try { res.write(`event: error\ndata: ${JSON.stringify({ message: String(err) })}\n\n`); } catch (_) {}
-      try { res.end(); } catch (_) {}
-    });
-
-    upstream.end();
-
-    req.on('close', () => {
-      try { upstream.destroy(); } catch (_) {}
-    });
-  } catch (e) {
-    res.statusCode = 500;
-    res.end('sse proxy error');
+    return new Response(upstream.body, { status: 200, headers });
+  }catch(e){
+    return new Response('sse proxy error', { status: 500 });
   }
 }
