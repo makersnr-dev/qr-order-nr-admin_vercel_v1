@@ -18,7 +18,7 @@
   .pill.warn{background:#2a160b;border-color:#4e331f;color:#ffd9b3}
   .muted{color:var(--muted)} .hidden{display:none}
 
-/* === QR 배포 보조 UI (v5.8) === */
+/* === QR 배포 보조 UI (v5.9) === */
 .qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:8px}
 .qr-card{background:#0e1a26;border:1px solid #234;border-radius:12px;padding:10px;text-align:center}
 .qr-card img{width:100%;height:auto;image-rendering:pixelated}
@@ -196,7 +196,7 @@ copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.
 init();
 </script>
 
-<script>(function(){if(window.__QR_CTRL_58)return;window.__QR_CTRL_58=true;
+<script>(function(){if(window.__QR_CTRL_59)return;window.__QR_CTRL_59=true;
 function $(s,r){return(r||document).querySelector(s)}function $all(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
 function textOf(e){return(e&&(e.textContent||e.value||'')).replace(/^\s+|\s+$/g,'')}function visible(e){return e&&e.offsetParent!==null&&!e.disabled}
 function now(){return (new Date()).getTime()}
@@ -213,14 +213,35 @@ function ensureUI(c){
   var save=$('#btnQrSaveTop',c); if(!save){save=document.createElement('button');save.id='btnQrSaveTop';save.className=g?(g.className||'btn'):'btn';save.appendChild(document.createTextNode('QR 저장')); if(g&&g.parentNode){var p=g.parentNode; if(g.nextSibling)p.insertBefore(save,g.nextSibling.nextSibling||g.nextSibling); else p.appendChild(save)} else c.insertBefore(save,c.firstChild)}
   return {genBtn:g,saveBtn:save,canvas:cv,img:im,grid:grid,hint:hint}
 }
+// robust size scoring even when hidden
+function sizeInfo(n){
+  var w=0,h=0;
+  if(n.getBoundingClientRect){ var r=n.getBoundingClientRect(); w=r.width; h=r.height; }
+  if(!(w>0 && h>0)){
+    if(n.tagName==='IMG'){ w=n.naturalWidth||0; h=n.naturalHeight||0; }
+    else if(n.tagName==='CANVAS'){ w=n.width||0; h=n.height||0; }
+    else if(n.tagName && n.tagName.toLowerCase()==='svg'){
+      try{
+        if(n.viewBox && n.viewBox.baseVal){ w=n.viewBox.baseVal.width||0; h=n.viewBox.baseVal.height||0; }
+        if(!(w>0 && h>0)){
+          if(n.width && n.width.baseVal) w=n.width.baseVal.value||0;
+          if(n.height && n.height.baseVal) h=n.height.baseVal.value||0;
+        }
+      }catch(e){}
+    }
+  }
+  if(!(w>0 && h>0)){ w=256; h=256; }
+  var area=Math.max(1,w*h); var ratio=(w&&h)?(w/h):1; var square=1-Math.min(1,Math.abs(1-ratio));
+  return {area:area, score: area*(0.7+0.3*square)};
+}
 function findRealQR(c){
   var nodes=$all('canvas, img, svg',c).filter(function(n){
-    return visible(n)&&n.id!=='qrPreviewCanvas'&&n.id!=='qrPreviewImg'&&!n.closest('#qrPreviewDet')&&!n.classList.contains('qr-hidden-source');
+    var isHidden=n.classList.contains('qr-hidden-source');
+    if(isHidden) return true; // include hidden source too
+    return visible(n) && n.id!=='qrPreviewCanvas' && n.id!=='qrPreviewImg' && !n.closest('#qrPreviewDet');
   });
   var best=null,score=0,i; for(i=0;i<nodes.length;i++){
-    var n=nodes[i], r=n.getBoundingClientRect(), area=Math.max(1,r.width*r.height);
-    var ratio=(r.width&&r.height)?(r.width/r.height):1; var square=1-Math.min(1,Math.abs(1-ratio));
-    var s=area*(0.7+0.3*square); if(s>score){best=n;score=s}
+    var s=sizeInfo(nodes[i]); if(s.score>score){ best=nodes[i]; score=s.score; }
   }
   return best;
 }
@@ -291,7 +312,6 @@ document.addEventListener('DOMContentLoaded', function(){
   var mo=new MutationObserver(function(){ setTimeout(sync, 40); }); mo.observe(card, {childList:true, subtree:true});
   var g=findGenBtn(card); if(g){ g.addEventListener('click', function(){ setTimeout(sync, 80); }); }
   ui.saveBtn.addEventListener('click', function(){
-    // derive input near the button
     var gen=findGenBtn(card);
     var input=(function(){ if(gen&&gen.parentNode){ var p=gen.previousElementSibling, hop=0; while(p&&hop<4){ if(p.tagName&&p.tagName.toUpperCase()==='INPUT'&&visible(p)) return p; var c=$('input',p); if(c&&visible(c)) return c; p=p.previousElementSibling; hop++; } var cand=$all('input',gen.parentNode).filter(visible)[0]; if(cand) return cand; } var c2=$all('input[type=number],input[type=text]', card).filter(visible)[0]; return c2 || null; })();
     var val=(input&&input.value||'').replace(/^\s+|\s+$/g,''); if(!val){ alert('테이블 번호를 입력하세요'); return; }
@@ -304,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function(){
 })();</script>
 
 
-<script>(function(){if(window.__FORM_ID_FIX_58)return;window.__FORM_ID_FIX_58=true;
+<script>(function(){if(window.__FORM_ID_FIX_59)return;window.__FORM_ID_FIX_59=true;
 function visible(el){return el && el.offsetParent!==null && !el.disabled}
 document.addEventListener('DOMContentLoaded',function(){
   var n=0; var nodes=document.querySelectorAll('input,select,textarea');
