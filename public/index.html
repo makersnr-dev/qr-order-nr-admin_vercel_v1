@@ -226,7 +226,31 @@ function now(){return (new Date()).getTime();} function ymd(ts){var d=ts?new Dat
 function card(){return document.getElementById('pane-qr')||document.body;} function tableInput(c){return $('#qrTable',c)||$('input[type=\"text\"]',c)||$('input',c);} function getTable(c){var i=tableInput(c);return (i&&i.value||'').trim();}
 function currentImgUrl(c){var im=$('#qrImg',c); if(im&&im.src) return im.src; var dl=$('#dlPng',c); if(dl&&dl.href) return dl.href; return '';}
 function findGenBtn(c){var b=$all('button,a',c); for(var i=0;i<b.length;i++){ if(/QR\\s*생성/i.test(textOf(b[i]))) return b[i]; } return null;}
-function ensureUI(c){var gen=findGenBtn(c); var save=$('#btnQrSaveTop',c); if(!save){ save=document.createElement('button'); save.id='btnQrSaveTop'; save.className=gen?(gen.className||'btn'):'btn'; save.textContent='QR 저장'; if(gen&&gen.parentNode){ gen.parentNode.insertBefore(save, gen.nextSibling); } else { c.insertBefore(save,c.firstChild);} } var title=$('h4[data-det-saved]',c); if(!title){ title=document.createElement('h4'); title.setAttribute('data-det-saved','1'); title.textContent='저장된 QR'; c.appendChild(title);} var grid=$('#qrSavedList',c); if(!grid){ grid=document.createElement('div'); grid.id='qrSavedList'; grid.className='qr-grid'; c.appendChild(grid);} if((' '+(grid.className||'')+' ').indexOf(' qr-grid ')<0){ grid.className=(grid.className?grid.className+' ':'')+'qr-grid'; } if(!HAS_TOKEN){ save.style.display='none'; title.style.display='none'; grid.style.display='none'; } else { save.style.display=''; title.style.display=''; grid.style.display=''; } return {gen:gen, save:save, grid:grid};}
+function ensureUI(c){
+  var gen = document.getElementById('makeQR') || findGenBtn(c);
+  var save = document.getElementById('btnQrSaveTop') || $('#btnQrSaveTop', c);
+  if(!save){
+    save = document.createElement('button');
+    save.id = 'btnQrSaveTop';
+    save.className = (gen && gen.className) ? gen.className : 'btn';
+    save.textContent = 'QR 저장';
+  }
+  try{
+    if(gen && gen.parentNode){
+      // remove duplicate existing save buttons in the pane except our node
+      var dups = Array.prototype.slice.call(c.querySelectorAll('#btnQrSaveTop'));
+      for (var i2=0;i2<dups.length;i2++){ if(dups[i2]!==save){ dups[i2].remove(); } }
+      gen.insertAdjacentElement('afterend', save);
+    } else if(!save.parentNode){
+      c.insertBefore(save, c.firstChild);
+    }
+  }catch(_){}
+  var title=$('h4[data-det-saved]',c); if(!title){ title=document.createElement('h4'); title.setAttribute('data-det-saved','1'); title.textContent='저장된 QR'; c.appendChild(title); }
+  var grid=$('#qrSavedList',c); if(!grid){ grid=document.createElement('div'); grid.id='qrSavedList'; grid.className='qr-grid'; c.appendChild(grid); }
+  if((' '+(grid.className||'')+' ').indexOf(' qr-grid ')<0){ grid.className=(grid.className?grid.className+' ':'')+'qr-grid'; }
+  if(!HAS_TOKEN){ save.style.display='none'; title.style.display='none'; grid.style.display='none'; } else { save.style.display=''; title.style.display=''; grid.style.display=''; }
+  return {gen:gen, save:save, grid:grid};
+}
 function getList(){ if(!HAS_TOKEN) return []; try{ return JSON.parse(localStorage.getItem('__qr_saved_list')||'[]'); }catch(_){ return []; } } function setList(l){ if(!HAS_TOKEN) return; localStorage.setItem('__qr_saved_list', JSON.stringify(l)); }
 function render(grid){ if(!HAS_TOKEN){ grid.innerHTML=''; return; } var list=getList(); if(!list.length){ grid.innerHTML='<div style=\"opacity:.7\">저장된 QR이 없습니다. QR 생성 후 [QR 저장]을 눌러 추가하세요.</div>'; try{console.debug('[QR] saved list empty');}catch(_){ } return; } grid.innerHTML=''; list.forEach(function(it,idx){ var cd=document.createElement('div'); cd.className='qr-card'; var img=document.createElement('img'); img.src=it.dataUrl||it.url||''; img.alt='QR '+(it.table||''); var meta=document.createElement('div'); meta.className='qr-meta'; meta.textContent='테이블 '+(it.table||''); var acts=document.createElement('div'); acts.className='qr-actions'; var dl=document.createElement('button'); dl.className='btn'; dl.textContent='다운로드'; dl.onclick=function(){ try{ fetch(img.src).then(r=>r.blob()).then(b=>{ var o=URL.createObjectURL(b); var name='qr'+(it.table?('_'+it.table):'')+'_'+ymd(it.ts||now())+'.png'; var a=document.createElement('a'); a.href=o; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(o)},4000); }).catch(function(){ var a2=document.createElement('a'); a2.href=img.src; a2.target='_blank'; a2.rel='noopener'; a2.click(); }); }catch(_){} }; var rm=document.createElement('button'); rm.className='btn'; rm.textContent='삭제'; rm.onclick=function(){ var l=getList().filter(function(_,j){return j!==idx;}); setList(l); render(grid); }; acts.appendChild(dl); acts.appendChild(rm); cd.appendChild(img); cd.appendChild(meta); cd.appendChild(acts); grid.appendChild(cd); }); }
 function wireDownload(c){ function saveFromSrc(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} var src=currentImgUrl(c); if(!src) return; var t=(getTable(c)||'').trim(); var name='qr'+(t?('_'+t):'')+'_'+ymd(now())+'.png'; fetch(src).then(r=>r.blob()).then(b=>{ var o=URL.createObjectURL(b); var a=document.createElement('a'); a.href=o; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(o)},4000); }).catch(function(){ var a2=document.createElement('a'); a2.href=src; a2.target='_blank'; a2.rel='noopener'; a2.click(); }); } var dl=$('#dlPng',c); if(dl){ dl.addEventListener('click', saveFromSrc, true);} var im=$('#qrImg',c); if(im){ im.style.cursor='pointer'; im.title='클릭하면 PNG로 다운로드'; im.addEventListener('click', saveFromSrc, true);} }
