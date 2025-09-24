@@ -18,7 +18,7 @@
   .pill.warn{background:#2a160b;border-color:#4e331f;color:#ffd9b3}
   .muted{color:var(--muted)} .hidden{display:none}
 
-/* === QR 배포 보조 UI (v5.12) === */
+/* === QR 배포 보조 UI (v5.13) === */
 .qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:8px}
 .qr-card{background:#0e1a26;border:1px solid #234;border-radius:12px;padding:10px;text-align:center}
 .qr-card img{width:100%;height:auto;image-rendering:pixelated}
@@ -197,13 +197,13 @@ copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.
 init();
 </script>
 
-<script>(function(){if(window.__QR_CTRL_512)return;window.__QR_CTRL_512=true;
+<script>(function(){if(window.__QR_CTRL_513)return;window.__QR_CTRL_513=true;
 function $(s,r){return(r||document).querySelector(s)}function $all(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
 function textOf(e){return(e&&(e.textContent||e.value||'')).replace(/^\s+|\s+$/g,'')}function visible(e){return e&&e.offsetParent!==null&&!e.disabled}
 function now(){return (new Date()).getTime()}
 
-function findQrCard(){var h=$all('h1,h2,h3,h4'),i,x=null;for(i=0;i<h.length;i++){if(/QR\\s*배포/.test(textOf(h[i]))){x=h[i];break}}if(!x){for(i=0;i<h.length;i++){if(/QR\\s*생성/.test(textOf(h[i]))){x=h[i];break}}}return x?((x.closest&&(x.closest('.card')||x.parentElement))||x.parentElement):document.body}
-function findGenBtn(c){var b=$all('button,a,input[type=button]',c),i;for(i=0;i<b.length;i++){if(/QR\\s*생성/i.test(textOf(b[i])))return b[i]}for(i=0;i<b.length;i++){if(/(생성|generate|create)/i.test(textOf(b[i])))return b[i]}return null}
+function findQrCard(){var h=$all('h1,h2,h3,h4'),i,x=null;for(i=0;i<h.length;i++){if(/QR\s*배포/.test(textOf(h[i]))){x=h[i];break}}if(!x){for(i=0;i<h.length;i++){if(/QR\s*생성/.test(textOf(h[i]))){x=h[i];break}}}return x?((x.closest&&(x.closest('.card')||x.parentElement))||x.parentElement):document.body}
+function findGenBtn(c){var b=$all('button,a,input[type=button]',c),i;for(i=0;i<b.length;i++){if(/QR\s*생성/i.test(textOf(b[i])))return b[i]}for(i=0;i<b.length;i++){if(/(생성|generate|create)/i.test(textOf(b[i])))return b[i]}return null}
 
 function ensureUI(c){
   var g=findGenBtn(c);
@@ -214,23 +214,17 @@ function ensureUI(c){
   var t=$('h4[data-det-saved]',c); if(!t){t=document.createElement('h4');t.setAttribute('data-det-saved','1'); t.appendChild(document.createTextNode('저장된 QR')); w.parentNode.insertBefore(t,w.nextSibling)}
   var grid=$('#qrSavedList',c); if(!grid){grid=document.createElement('div');grid.id='qrSavedList';grid.className='qr-grid'; t.parentNode.insertBefore(grid,t.nextSibling)}
   var save=$('#btnQrSaveTop',c); if(!save){save=document.createElement('button');save.id='btnQrSaveTop';save.className=g?(g.className||'btn'):'btn';save.appendChild(document.createTextNode('QR 저장')); if(g&&g.parentNode){var p=g.parentNode; if(g.nextSibling)p.insertBefore(save,g.nextSibling.nextSibling||g.nextSibling); else p.appendChild(save)} else c.insertBefore(save,c.firstChild)}
-  // legacy cleanup: only affect nodes AFTER the '저장된 QR' header to avoid hiding the control row.
-  try{
-    var node=t.nextElementSibling;
-    while(node){
-      var next=node.nextElementSibling;
-      if(node.id!=='qrSavedList'){
-        var hasButtons=$all('button',node).some(function(b){var s=textOf(b);return /다운로드|삭제/.test(s)});
-        var hasImg=$all('img,canvas,svg',node).length>0;
-        if(hasButtons && !hasImg){ node.classList.add('qr-legacy-hide'); }
-      }
-      node=next;
+  try{ var node=t.nextElementSibling; while(node){ var next=node.nextElementSibling;
+    if(node.id!=='qrSavedList'){
+      var hasButtons=$all('button',node).some(function(b){var s=textOf(b);return /다운로드|삭제/.test(s)});
+      var hasImg=$all('img,canvas,svg',node).length>0;
+      if(hasButtons && !hasImg){ node.classList.add('qr-legacy-hide'); }
     }
-  }catch(e){}
+    node=next;
+  } }catch(e){}
   return {genBtn:g,saveBtn:save,canvas:cv,img:im,grid:grid,hint:hint}
 }
 
-// robust size even when hidden
 function sizeInfo(n){
   var w=0,h=0; if(n.getBoundingClientRect){ var r=n.getBoundingClientRect(); w=r.width; h=r.height; }
   if(!(w>0 && h>0)){
@@ -250,7 +244,7 @@ function sizeInfo(n){
 function findRealQR(c){
   var nodes=$all('canvas, img, svg',c).filter(function(n){
     var isHidden=n.classList.contains('qr-hidden-source');
-    if(isHidden) return true; // include hidden too
+    if(isHidden) return true;
     return visible(n) && n.id!=='qrPreviewCanvas' && n.id!=='qrPreviewImg' && !n.closest('#qrPreviewDet');
   });
   var best=null,score=0,i; for(i=0;i<nodes.length;i++){ var s=sizeInfo(nodes[i]); if(s.score>score){ best=nodes[i]; score=s.score; } }
@@ -272,16 +266,32 @@ function showPreviewFrom(el,ui){
   if(el.tagName && el.tagName.toLowerCase()==='svg'){ try{ var s=(new XMLSerializer()).serializeToString(el); var enc='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s); ui.img.src=enc; showOnly(ui.img); el.classList.add('qr-hidden-source'); return {kind:'svg',src:enc} }catch(e){ ui.hint.style.display='block'; return {kind:'none'}; } }
   ui.hint.style.display='block'; return {kind:'none'};
 }
+
 function getList(){ try{return JSON.parse(localStorage.getItem('__qr_saved_list')||'[]')}catch(e){return[]} }
 function setList(l){ localStorage.setItem('__qr_saved_list', JSON.stringify(l)); }
+
+// No RegExp: URL-based QR src detection
+function looksLikeQrSrc(src){
+  try{
+    var u = new URL(src, location.href);
+    var p = (u.pathname||'').toLowerCase();
+    var q = (u.search||'').toLowerCase();
+    if (p.endsWith('/qr') || p.endsWith('/qr.png') || p.indexOf('/qr/')>=0) return true;
+    if (q.indexOf('qr=')>=0 || q.indexOf('data=')>=0) return true;
+  }catch(e){
+    var s = (src||'').toLowerCase();
+    if (s.indexOf('/qr')>=0) return true;
+  }
+  return false;
+}
 function getQrUrlBuilder(card){
   try{
     var imgs=$all('img',card).concat($all('img',document.body));
-    var cand=imgs.find(function(im){ var s=im.getAttribute('src')||''; return /(?:^|\\/|\\?)qr(?:\\?|$)/i.test(s); });
+    var cand=imgs.find(function(im){ return looksLikeQrSrc(im.getAttribute('src')||''); });
     if(!cand) return null;
     var u=new URL(cand.src, location.href);
     var params=new URLSearchParams(u.search);
-    var key= params.has('table')?'table':(params.has('t')?'t':'table');
+    var key = params.has('table') ? 'table' : (params.has('t') ? 't' : (params.has('tableNo') ? 'tableNo' : 'table'));
     return function(table, size){
       var u2=new URL(u.href);
       var p=new URLSearchParams(u2.search);
@@ -321,11 +331,14 @@ function render(grid, card){
     else { dl.disabled=true; }
     var rm=document.createElement('button'); rm.className='btn'; rm.appendChild(document.createTextNode('삭제'));
     rm.onclick=(function(idx){ return function(){ var l=getList().filter(function(_,j){return j!==idx}); setList(l); render(grid, card); };})(i);
-    acts.appendChild(dl); acts.appendChild(rm); cd.appendChild(img); cd.appendChild(meta); cd.appendChild(acts); grid.appendChild(cd);
+    acts.appendChild(dl); acts.appendChild(rm); cd.appendChild(acts); cd.appendChild(meta); cd.appendChild(img); // order not critical
+    // Reorder to image->meta->actions
+    cd.innerHTML=''; cd.appendChild(img); cd.appendChild(meta); cd.appendChild(acts);
+    grid.appendChild(cd);
   }
 }
 function wirePreviewDownload(card,ui){
-  var link=null, els=$all('a,button',card), i; for(i=0;i<els.length;i++){ if(/PNG\\s*다운로드/i.test(textOf(els[i]))){ link=els[i]; break; } }
+  var link=null, els=$all('a,button',card), i; for(i=0;i<els.length;i++){ if(/PNG\s*다운로드/i.test(textOf(els[i]))){ link=els[i]; break; } }
   if(!link) return;
   link.addEventListener('click', function(ev){
     ev.preventDefault(); ev.stopPropagation();
@@ -352,18 +365,5 @@ document.addEventListener('DOMContentLoaded', function(){
   render(ui.grid, card); sync();
 });
 })();</script>
-
-
-<script>(function(){if(window.__FORM_ID_FIX_512)return;window.__FORM_ID_FIX_512=true;
-function visible(el){return el && el.offsetParent!==null && !el.disabled}
-document.addEventListener('DOMContentLoaded',function(){
-  var n=0; var nodes=document.querySelectorAll('input,select,textarea');
-  for (var i=0;i<nodes.length;i++){
-    var el=nodes[i]; if(!visible(el)) continue; if (el.id) continue;
-    var base=(el.getAttribute('name')||el.getAttribute('aria-label')||el.type||'field').toString().replace(/[^a-z0-9_\-]/ig,'_'); if(!base) base='field';
-    var candidate=base+'_'+(++n); while(document.getElementById(candidate)){ candidate=base+'_'+(++n); }
-    el.id=candidate;
-  }
-});})();</script>
 
 </body></html>
