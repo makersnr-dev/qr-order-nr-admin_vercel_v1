@@ -212,7 +212,15 @@ const NT={ctx:null,enabled:false,lastKeys:[],maxKeys:20};
 const SKEY='__qr_user_beep_enabled_v2';
 function log(s){try{const el=document.getElementById('ntLog'); if(el){el.textContent = (el.textContent?el.textContent+'\n':'') + s;}}catch(_){}} 
 function setConn(state){const el=document.getElementById('ntConn'); if(!el)return; if(state==='ok'){el.textContent='연결됨'; el.className='pill ok';} else if(state==='down'){el.textContent='끊김'; el.className='pill bad';} else {el.textContent='확인 중…'; el.className='pill';}}
-function setPerm(){const p=(window.Notification&&Notification.permission)||'unsupported'; const el=document.getElementById('ntPerm'); if(!el)return; el.textContent=p; el.className='pill '+(p==='granted'?'ok':(p==='denied'?'bad':''));}
+function setPerm(){const p=(window.Notification&&Notification.permission)||'unsupported'; const el=document.getElementById('ntPerm'); if(!el)return; el.textContent=p; el.className='pill '+(p==='granted'?'ok':(p==='denied'?'bad':'')); try{syncPermBtn();}catch(_){}}
+function syncPermBtn(){ try{
+  const btn=document.getElementById('ntAskPerm');
+  if(!btn) return;
+  const perm=(window.Notification&&Notification.permission)||'unsupported';
+  if(perm==='granted'){ btn.textContent='이미 허용됨'; btn.disabled=true; }
+  else if(perm==='denied'){ btn.textContent='브라우저 설정에서 허용'; btn.disabled=false; }
+  else { btn.textContent='브라우저 알림 허용 요청'; btn.disabled=false; }
+}catch(_){} }
 function ensureCtx(){ if(NT.ctx) return NT.ctx; const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; NT.ctx=new AC(); return NT.ctx;}
 function enableBeep(){NT.enabled=true; localStorage.setItem(SKEY,'1'); try{const c=ensureCtx(); if(c&&c.state==='suspended'){c.resume();}}catch(_){}} 
 function beep(){ try{ if(!NT.enabled) return; const c=ensureCtx(); if(!c) return; const o=c.createOscillator(); const g=c.createGain(); o.type='sine'; o.frequency.value=880; g.gain.value=0.1; o.connect(g); g.connect(c.destination); o.start(); setTimeout(()=>{o.stop(); o.disconnect(); g.disconnect();}, 180); }catch(_){ } }
@@ -222,7 +230,14 @@ function dedup(key){ NT.lastKeys.push({key,ts:Date.now()}); if(NT.lastKeys.lengt
 function attachButtons(){
   const btnE=document.getElementById('ntEnableSound'); if(btnE){ btnE.onclick=function(){ enableBeep(); beep(); log('소리 활성화됨'); }; }
   const btnT=document.getElementById('ntTestSound'); if(btnT){ btnT.onclick=function(){ enableBeep(); beep(); log('소리 테스트'); }; }
-  const btnP=document.getElementById('ntAskPerm'); if(btnP){ btnP.onclick=function(){ try{ Notification.requestPermission().then(setPerm); }catch(_){ setPerm(); } }; }
+  const btnP=document.getElementById('ntAskPerm'); if(btnP){ btnP.onclick=function(){
+    try{
+      const perm=(window.Notification&&Notification.permission)||'unsupported';
+      if(perm==='granted'){ setPerm(); syncPermBtn(); log('브라우저 알림: 이미 허용됨'); return; }
+      if(perm==='denied'){ setPerm(); syncPermBtn(); log('브라우저 알림: 차단됨 (브라우저 설정에서 변경 필요)'); return; }
+      Notification.requestPermission().then(p=>{ setPerm(); syncPermBtn(); if(p==='granted'){ notifyBrowser('알림 켜짐','이제 직원 호출 알림을 받습니다.'); } });
+    }catch(_){ setPerm(); syncPermBtn(); }
+  }; }
   const btnB=document.getElementById('ntTestBrowser'); if(btnB){ btnB.onclick=function(){ notifyBrowser('테스트 알림','브라우저 알림이 동작 중입니다.'); beep(); }; }
 }
 
@@ -266,7 +281,7 @@ function wireSSE(){
 
 document.addEventListener('DOMContentLoaded', function(){
   try{ NT.enabled = localStorage.getItem(SKEY)==='1'; }catch(_){}
-  setPerm(); attachButtons(); wireSSE();
+  setPerm(); syncPermBtn(); attachButtons(); wireSSE();
 });
 })();</script>
 
