@@ -18,7 +18,7 @@
   .pill.warn{background:#2a160b;border-color:#4e331f;color:#ffd9b3}
   .muted{color:var(--muted)} .hidden{display:none}
 
-/* === QR 배포 보조 UI (v5.13g) === */
+/* === QR 배포 보조 UI (v5.13h) === */
 .qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:8px}
 .qr-card{background:#0e1a26;border:1px solid #234;border-radius:12px;padding:10px;text-align:center}
 .qr-card img{width:100%;height:auto;image-rendering:pixelated}
@@ -220,7 +220,7 @@ function ensureUI(c){
   return {genBtn:g,saveBtn:save,canvas:cv,img:im,grid:grid,hint:hint,title:t}
 }
 
-// size, preview helpers
+// helpers
 function sizeInfo(n){
   var w=0,h=0; if(n.getBoundingClientRect){ var r=n.getBoundingClientRect(); w=r.width; h=r.height; }
   if(!(w>0 && h>0)){
@@ -263,11 +263,11 @@ function showPreviewFrom(el,ui){
   ui.hint.style.display='block'; return {kind:'none'};
 }
 
-// Storage helpers (respect login status)
+// storage (login aware)
 function getList(){ if(!HAS_TOKEN) return []; try{return JSON.parse(localStorage.getItem('__qr_saved_list')||'[]')}catch(e){return[]} }
 function setList(l){ if(!HAS_TOKEN) return; localStorage.setItem('__qr_saved_list', JSON.stringify(l)); }
 
-// QR URL builder without RegExp
+// QR url builder w/o regex
 function looksLikeQrSrc(src){
   try{
     var u = new URL(src, location.href);
@@ -326,22 +326,49 @@ function render(grid, card, header){
     var acts=document.createElement('div'); acts.className='qr-actions';
     var dl=document.createElement('button'); dl.className='btn'; dl.appendChild(document.createTextNode('다운로드'));
     if(it.dataUrl){ dl.onclick=(function(u,t,idx){return function(){ var a=document.createElement('a'); a.href=u; a.download='qr_table_'+(t||idx)+'.png'; a.click(); }})(it.dataUrl,it.table,i); }
-    else if(it.url){ dl.onclick=(function(u){ return function(){ var a=document.createElement('a'); a.href=u; a.target='_blank'; a.rel='noopener'; a.click(); };})(it.url); }
+    else if(it.url){ dl.onclick=(function(u,t,idx){ return function(){ var a=document.createElement('a'); a.href=u; a.download='qr_table_'+(t||idx)+'.png'; a.click(); };})(it.url,it.table,i); }
     else { dl.disabled=true; }
     var rm=document.createElement('button'); rm.className='btn'; rm.appendChild(document.createTextNode('삭제'));
     rm.onclick=(function(idx){ return function(){ var l=getList().filter(function(_,j){return j!==idx}); setList(l); render(grid, card, header); };})(i);
     acts.appendChild(dl); acts.appendChild(rm); cd.appendChild(img); cd.appendChild(meta); cd.appendChild(acts); grid.appendChild(cd);
   }
 }
+// Download handler for the top "PNG 다운로드" link and clicking the preview image
 function wirePreviewDownload(card,ui){
-  var link=null, els=$all('a,button',card), i; for(i=0;i<els.length;i++){ if(/PNG\s*다운로드/i.test(textOf(els[i]))){ link=els[i]; break; } }
-  if(!link) return;
-  link.addEventListener('click', function(ev){
-    ev.preventDefault(); ev.stopPropagation();
-    if(ui.canvas.style.display==='block'){ try{ var d=ui.canvas.toDataURL('image/png'); var a=document.createElement('a'); a.href=d; a.download='qr_preview.png'; a.click(); return; }catch(e){} }
-    if(ui.img.style.display==='block' && ui.img.src){ var a2=document.createElement('a'); a2.href=ui.img.src; a2.target='_blank'; a2.rel='noopener'; a2.click(); }
-  }, true);
+  var link=null, els=$all('a,button',card), i;
+  for(i=0;i<els.length;i++){ if(/PNG\s*다운로드/i.test(textOf(els[i]))){ link=els[i]; break; } }
+  function isSameOrigin(url){ try{ return (new URL(url, location.href)).origin===location.origin; }catch(e){ return false; } }
+  function downloadHref(src, name){
+    var a=document.createElement('a'); a.href=src; a.download=name||'qr.png'; document.body.appendChild(a); a.click(); a.remove();
+  }
+  async function downloadViaFetch(src, name){
+    try{
+      const r = await fetch(src, {mode:'cors', credentials:'same-origin'});
+      if(!r.ok) throw new Error('fetch failed');
+      const b = await r.blob();
+      const url = URL.createObjectURL(b);
+      downloadHref(url, name||'qr.png');
+      setTimeout(()=> URL.revokeObjectURL(url), 5000);
+    }catch(e){
+      // 최후 수단: 새창
+      var a2=document.createElement('a'); a2.href=src; a2.target='_blank'; a2.rel='noopener'; a2.click();
+    }
+  }
+  function handle(ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+    var name='qr_table.png';
+    if(ui.canvas && ui.canvas.style.display==='block'){
+      try{ var d=ui.canvas.toDataURL('image/png'); return downloadHref(d, name); }catch(e){}
+    }
+    if(ui.img && ui.img.style.display==='block' && ui.img.src){
+      if(isSameOrigin(ui.img.src)){ return downloadHref(ui.img.src, name); }
+      return downloadViaFetch(ui.img.src, name);
+    }
+  }
+  if(link){ link.addEventListener('click', handle, true); }
+  if(ui.img){ ui.img.style.cursor='pointer'; ui.img.title='클릭하면 PNG로 다운로드'; ui.img.addEventListener('click', handle, true); }
 }
+
 document.addEventListener('DOMContentLoaded', function(){
   var card=findQrCard(); var ui=ensureUI(card);
   function sync(){ var src=findRealQR(card); showPreviewFrom(src, ui); wirePreviewDownload(card, ui); }
