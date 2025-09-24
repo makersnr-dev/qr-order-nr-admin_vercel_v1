@@ -19,7 +19,7 @@
   .muted{color:var(--muted)} .hidden{display:none}
 
 /* === QR grid (v5.13 n2b) === */
-.qr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:10px}
+.qr-grid{width:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:10px}
 .qr-card{background:#0e1a26;border:1px solid #234;border-radius:12px;padding:10px;text-align:center}
 .qr-card img{width:100%;height:auto;image-rendering:pixelated}
 .qr-meta{margin-top:6px;font-weight:600}
@@ -55,11 +55,12 @@
 
   <div id="pane-qr" class="card hidden">
     <div class="row"><input id="qrTable" placeholder="테이블 번호"/> <button class="btn" id="makeQR">QR 생성</button> <a id="dlPng" class="btn" href="#" download="qr.png">PNG 다운로드</a>
+</div>
+    <div style="margin-top:10px"><img id="qrImg" style="background:#fff;border-radius:8px"/></div>
+  
   <h4 data-det-saved>저장된 QR</h4>
   <div id="qrSavedList" class="qr-grid"></div>
 </div>
-    <div style="margin-top:10px"><img id="qrImg" style="background:#fff;border-radius:8px"/></div>
-  </div>
 
   <div id="pane-menu" class="card hidden">
     <div class="row"><input id="m_id" placeholder="id"/><input id="m_name" placeholder="이름"/><input id="m_price" placeholder="가격" type="number"/><button class="btn" id="m_add">추가</button></div>
