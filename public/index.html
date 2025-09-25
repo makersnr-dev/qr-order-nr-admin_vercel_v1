@@ -554,4 +554,23 @@ init();
 })();
 </script>
 
+
+<script id="stray-angle-cleanup">
+(function () {
+  try {
+    var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    var rm = [];
+    while (w.nextNode()) {
+      var n = w.currentNode;
+      var t = (n.nodeValue||"");
+      if (!t) continue;
+      if (/^\s*<\s*$/.test(t)) { rm.push(n); continue; }
+      var fixed = t.replace(/\s*<\s*$/,'');
+      if (fixed !== t) n.nodeValue = fixed;
+    }
+    rm.forEach(function(n){ n.parentNode && n.parentNode.removeChild(n); });
+  } catch(e) {}
+})();
+</script>
+
 </body></html>
