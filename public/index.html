@@ -71,7 +71,7 @@
 </div>
     <div class="tab" data-tab="qr">QR 배포<</div>
     <div class="tab" data-tab="menu">메뉴 관리<</div>
-    <div class="tab" data-tab="code">결제 코드</div>
+    <div class="tab" data-tab="code">결제 코드<button class="btn" id="openNotifyBtn" style="margin-left:8px">알림 설정/점검</button></div>
   <</div>
 
   <div id="pane-orders" class="card">
@@ -97,7 +97,7 @@
     <div class="row">
       <div>오늘의 결제 코드 <span id="dcDate" class="muted"></span><</div>
   <div id="pane-notify" class="card hidden">
-    <div id="notifyDock" class="muted" style="margin-bottom:8px">알림 설정/점검 패널</div>
+    <div id="notifyDock" class="muted" style="margin-bottom:8px">알림 설정/점검</div>
   </div>
 
       <span id="dcStatus" class="pill"></span>
@@ -561,76 +561,23 @@ init();
 </script>
 
 
-<script id="stray-angle-cleanup">
-(function () {
-  try {
-    var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    var rm = [];
-    while (w.nextNode()) {
-      var n = w.currentNode;
-      var t = (n.nodeValue||"");
-      if (!t) continue;
-      if (/^\s*<\s*$/.test(t)) { rm.push(n); continue; }
-      var fixed = t.replace(/\s*<\s*$/,'');
-      if (fixed !== t) n.nodeValue = fixed;
-    }
-    rm.forEach(function(n){ n.parentNode && n.parentNode.removeChild(n); });
-  } catch(e) {}
-})();
-</script>
-
-
-<script id="notify-tab-mounter">
-document.addEventListener('DOMContentLoaded', function(){
-  try{
-    var pane = document.getElementById('pane-notify');
-    if(!pane) return;
-    var ids = ['notifyCard','notifySection','notifyPanel','notifySettings'];
-    var found = null;
-    for(var i=0;i<ids.length;i++){ var el = document.getElementById(ids[i]); if(el){ found = el; break; } }
-    if(found){
-      var btn = document.getElementById('notifySettingsBtn');
-      if(btn) btn.parentNode && btn.parentNode.removeChild(btn);
-      pane.appendChild(found);
-      found.classList.remove('hidden');
-    }
-  }catch(e){}
-});
-</script>
-
-
-<script id="notify-tab-only-cleanup">
-document.addEventListener('DOMContentLoaded', function(){
-  try{
-    // 1) remove legacy inline button by id
-    var legacy = document.getElementById('notifySettingsBtn');
-    if (legacy && legacy.parentNode) legacy.parentNode.removeChild(legacy);
-
-    // 2) remove any button/anchor in .tabs that shows "알림 설정/점검" but is NOT the tab
-    var tabs = document.querySelector('.tabs');
-    if (tabs){
-      Array.from(tabs.querySelectorAll('button,a')).forEach(function(el){
-        var txt = (el.innerText||'').trim();
-        if (/^알림\s*설정\s*\/\s*점검$/.test(txt)){
-          el.parentNode && el.parentNode.removeChild(el);
-        }
-      });
-    }
-
-    // 3) remove duplicates elsewhere (e.g., in cards)
-    Array.from(document.querySelectorAll('button,a')).forEach(function(el){
-      var txt = (el.innerText||'').trim();
-      if (/^알림\s*설정\s*\/\s*점검$/.test(txt)){
-        // if it's not the dedicated tab (div.tab[data-tab=notify]), drop it
-        var isTab = el.classList && el.classList.contains('tab');
-        var isNotifyTab = isTab && el.getAttribute('data-tab') === 'notify';
-        if (!isNotifyTab){
-          el.parentNode && el.parentNode.removeChild(el);
-        }
-      }
+<script id="notify-only-tab-enforcer">
+(function(){
+  function normalize(s){ return (s||'').replace(/\s+/g,' ').trim(); }
+  function isCaption(el){ return normalize(el.innerText) === '알림 설정/점검'; }
+  function isNotifyTab(el){ return el && el.classList && el.classList.contains('tab') && el.getAttribute('data-tab')==='notify'; }
+  function sweep(){
+    var cand = document.querySelectorAll('button,a,span,div');
+    cand.forEach(function(el){
+      if (isCaption(el) && !isNotifyTab(el)) el.remove();
     });
-  }catch(e){}
-});
+    var legacy = document.getElementById('notifySettingsBtn');
+    if (legacy && !isNotifyTab(legacy)) legacy.remove();
+  }
+  document.addEventListener('DOMContentLoaded', sweep);
+  window.addEventListener('load', function(){ setTimeout(sweep,0); setTimeout(sweep,250); setTimeout(sweep,1000);} );
+  new MutationObserver(sweep).observe(document.documentElement||document.body, {childList:true, subtree:true});
+})();
 </script>
 
 </body></html>
