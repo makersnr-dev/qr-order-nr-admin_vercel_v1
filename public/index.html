@@ -38,23 +38,23 @@
     <div id="notifyCard">
   <h3>알림 설정/점검</h3>
   <div class="row" style="gap:8px;flex-wrap:wrap">
-    <div>연결 상태: <b id="sseStatus">확인 중...</b></div>
+    <div>연결 상태: <b id="sseStatus">확인 중...</b><</div>
     
-  </div>
-</div>
-<div>브라우저 권한: <b id="notifPerm">확인 중...</b></div>
-  </div>
+  <</div>
+<</div>
+<div>브라우저 권한: <b id="notifPerm">확인 중...</b><</div>
+  <</div>
   <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px">
     <button class="btn" id="btnEnableSound">소리 활성화</button>
     <button class="btn" id="btnTestSound">소리 테스트</button>
     <button class="btn" id="btnRequestNotif">브라우저 알림 허용 요청</button>
     <button class="btn" id="btnTestNotif">브라우저 알림 테스트</button>
-  </div>
+  <</div>
   <div class="small" id="notifyHelp" style="margin-top:6px">
     - 소리는 브라우저 정책상 <b>한 번 클릭</b>으로 활성화해야 합니다. 위 버튼을 먼저 눌러 주세요.<br/>
     - 페이지가 <b>열려 있어야</b> 실시간 알림을 받습니다. (무료 구성, 백그라운드 푸시는 미구현)
-  </div>
-</div>
+  <</div>
+<</div>
 
 <div class="wrap">
   <div class="row" style="justify-content:space-between">
@@ -62,49 +62,49 @@
     <div class="row">
       <a class="btn" href="/login">로그인</a>
       <button class="btn" id="logoutBtn">로그아웃</button>
-    </div>
-  </div>
+    <</div>
+  <</div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="orders">주문목록</div>
-    <div class="tab" data-tab="qr">QR 배포</div>
-    <div class="tab" data-tab="menu">메뉴 관리</div>
-    <div class="tab" data-tab="code">결제 코드<button class="btn" id="openNotifyBtn" style="margin-left:8px">알림 설정/점검</button>/div>
-  </div>
+    <div class="tab active" data-tab="orders">주문목록<</div>
+    <div class="tab" data-tab="qr">QR 배포<</div>
+    <div class="tab" data-tab="menu">메뉴 관리<</div>
+    <div class="tab" data-tab="code">결제 코드<button class="btn" id="openNotifyBtn" style="margin-left:8px">알림 설정/점검</button></div>
+  <</div>
 
   <div id="pane-orders" class="card">
     <div class="row" style="justify-content:space-between">
-      <div><b>주문목록</b></div>
+      <div><b>주문목록</b><</div>
       <button class="btn" id="exportOrders">엑셀 다운로드</button>
-    </div>
+    <</div>
     <table id="ordersTbl"><thead><tr><th>시간</th><th>테이블</th><th>항목</th><th>금액</th><th>상태</th></tr></thead><tbody></tbody></table>
-  </div>
+  <</div>
 
   <div id="pane-qr" class="card hidden">
-    <div class="row"><input id="qrTable" placeholder="테이블 번호"/> <button class="btn" id="makeQR">QR 생성</button> <a id="dlPng" class="btn" href="#" download="qr.png">PNG 다운로드</a></div>
-    <div style="margin-top:10px"><img id="qrImg" style="background:#fff;border-radius:8px"/></div>
-  </div>
+    <div class="row"><input id="qrTable" placeholder="테이블 번호"/> <button class="btn" id="makeQR">QR 생성</button> <a id="dlPng" class="btn" href="#" download="qr.png">PNG 다운로드</a><</div>
+    <div style="margin-top:10px"><img id="qrImg" style="background:#fff;border-radius:8px"/><</div>
+  <</div>
 
   <div id="pane-menu" class="card hidden">
-    <div class="row"><input id="m_id" placeholder="id"/><input id="m_name" placeholder="이름"/><input id="m_price" placeholder="가격" type="number"/><button class="btn" id="m_add">추가</button></div>
+    <div class="row"><input id="m_id" placeholder="id"/><input id="m_name" placeholder="이름"/><input id="m_price" placeholder="가격" type="number"/><button class="btn" id="m_add">추가</button><</div>
     <table id="menuTbl"><thead><tr><th>ID</th><th>이름</th><th>가격</th><th>활성</th><th>동작</th></tr></thead><tbody></tbody></table>
-    <div class="row" style="margin-top:10px"><input type="file" id="xlsxFile"/><button class="btn" id="m_upload">엑셀 업로드</button></div>
-  </div>
+    <div class="row" style="margin-top:10px"><input type="file" id="xlsxFile"/><button class="btn" id="m_upload">엑셀 업로드</button><</div>
+  <</div>
 
   <div id="pane-code" class="card hidden">
     <div class="row">
-      <div>오늘의 결제 코드 <span id="dcDate" class="muted"></span></div>
+      <div>오늘의 결제 코드 <span id="dcDate" class="muted"></span><</div>
       <span id="dcStatus" class="pill"></span>
       <span id="dcRemain" class="muted"></span>
-    </div>
+    <</div>
     <div class="row" style="margin-top:10px">
       <input id="dcCode" style="width:140px" readonly>
       <button class="btn" id="copyBtn">복사</button>
       <button class="btn" id="regenBtn">새 코드 발급</button>
       <button class="btn" id="clearBtn">기본 코드로 되돌리기</button>
-    </div>
-  </div>
-</div>
+    <</div>
+  <</div>
+<</div>
 
 <script>
 let API='', ORDER_BASE='', TOKEN=localStorage.getItem('adminToken')||'';
