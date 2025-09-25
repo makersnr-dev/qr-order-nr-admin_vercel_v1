@@ -598,4 +598,39 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 
+
+<script id="notify-tab-only-cleanup">
+document.addEventListener('DOMContentLoaded', function(){
+  try{
+    // 1) remove legacy inline button by id
+    var legacy = document.getElementById('notifySettingsBtn');
+    if (legacy && legacy.parentNode) legacy.parentNode.removeChild(legacy);
+
+    // 2) remove any button/anchor in .tabs that shows "알림 설정/점검" but is NOT the tab
+    var tabs = document.querySelector('.tabs');
+    if (tabs){
+      Array.from(tabs.querySelectorAll('button,a')).forEach(function(el){
+        var txt = (el.innerText||'').trim();
+        if (/^알림\s*설정\s*\/\s*점검$/.test(txt)){
+          el.parentNode && el.parentNode.removeChild(el);
+        }
+      });
+    }
+
+    // 3) remove duplicates elsewhere (e.g., in cards)
+    Array.from(document.querySelectorAll('button,a')).forEach(function(el){
+      var txt = (el.innerText||'').trim();
+      if (/^알림\s*설정\s*\/\s*점검$/.test(txt)){
+        // if it's not the dedicated tab (div.tab[data-tab=notify]), drop it
+        var isTab = el.classList && el.classList.contains('tab');
+        var isNotifyTab = isTab && el.getAttribute('data-tab') === 'notify';
+        if (!isNotifyTab){
+          el.parentNode && el.parentNode.removeChild(el);
+        }
+      }
+    });
+  }catch(e){}
+});
+</script>
+
 </body></html>
