@@ -96,10 +96,6 @@
   <div id="pane-code" class="card hidden">
     <div class="row">
       <div>오늘의 결제 코드 <span id="dcDate" class="muted"></span><</div>
-  <div id="pane-notify" class="card hidden">
-    <div id="notifyDock" class="muted" style="margin-bottom:8px">알림 설정/점검</div>
-  </div>
-
       <span id="dcStatus" class="pill"></span>
       <span id="dcRemain" class="muted"></span>
     <</div>
@@ -561,22 +557,46 @@ init();
 </script>
 
 
-<script id="notify-only-tab-enforcer">
+<script id="stray-lt-cleaner">
+document.addEventListener('DOMContentLoaded', function(){
+  try{
+    function sweep(root){
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      var rm = [];
+      while(w.nextNode()){
+        var n = w.currentNode;
+        if(n.nodeValue && n.nodeValue.replace(/\s+/g,'').trim()==='<'){ rm.push(n); }
+      }
+      rm.forEach(function(n){ if(n.parentNode) n.parentNode.removeChild(n); });
+    }
+    sweep(document.body);
+    new MutationObserver(function(muts){
+      muts.forEach(function(m){
+        m.addedNodes && m.addedNodes.forEach(function(n){
+          if(n.nodeType===3 && n.nodeValue.replace(/\s+/g,'').trim()==='<'){
+            if(n.parentNode) n.parentNode.removeChild(n);
+          }else if(n.nodeType===1){ sweep(n); }
+        });
+      });
+    }).observe(document.body, {childList:true, subtree:true});
+  }catch(e){}
+});
+</script>
+
+
+<script id="orders-sse-singleton">
 (function(){
-  function normalize(s){ return (s||'').replace(/\s+/g,' ').trim(); }
-  function isCaption(el){ return normalize(el.innerText) === '알림 설정/점검'; }
-  function isNotifyTab(el){ return el && el.classList && el.classList.contains('tab') && el.getAttribute('data-tab')==='notify'; }
-  function sweep(){
-    var cand = document.querySelectorAll('button,a,span,div');
-    cand.forEach(function(el){
-      if (isCaption(el) && !isNotifyTab(el)) el.remove();
-    });
-    var legacy = document.getElementById('notifySettingsBtn');
-    if (legacy && !isNotifyTab(legacy)) legacy.remove();
+  function start(){
+    try{
+      if(window.__ORDERS_ES && window.__ORDERS_ES.readyState===1){ return; }
+      if(window.__ORDERS_ES){ try{ window.__ORDERS_ES.close(); }catch(_){ } }
+      var es = new EventSource('/api/events-orders');
+      window.__ORDERS_ES = es;
+      es.addEventListener('order', function(){ try{ window.loadOrders && window.loadOrders(); }catch(_){} });
+      es.onerror = function(){ try{ es.close(); }catch(_){ } setTimeout(start, 1500); };
+    }catch(e){ setTimeout(start, 3000); }
   }
-  document.addEventListener('DOMContentLoaded', sweep);
-  window.addEventListener('load', function(){ setTimeout(sweep,0); setTimeout(sweep,250); setTimeout(sweep,1000);} );
-  new MutationObserver(sweep).observe(document.documentElement||document.body, {childList:true, subtree:true});
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', start); } else { start(); }
 })();
 </script>
 
