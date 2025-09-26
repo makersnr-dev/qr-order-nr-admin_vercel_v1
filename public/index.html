@@ -66,15 +66,15 @@
   </div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="orders">주문목록/div>
-    <div class="tab" data-tab="qr">QR 배포/div>
-    <div class="tab" data-tab="menu">메뉴 관리/div>
-    <div class="tab" data-tab="code">결제 코드button class="btn" id="openNotifyBtn" style="margin-left:8px">알림 설정/점검</button>/div>
+    <div class="tab active" data-tab="orders">주문목록</div>
+    <div class="tab" data-tab="qr">QR 배포</div>
+    <div class="tab" data-tab="menu">메뉴 관리</div>
+    <div class="tab" data-tab="code">결제 코드<button class="btn" id="openNotifyBtn" style="margin-left:8px">알림 설정/점검</button>/div>
   </div>
 
   <div id="pane-orders" class="card">
     <div class="row" style="justify-content:space-between">
-      <div><b>주문목록/b></div>
+      <div><b>주문목록</b></div>
       <button class="btn" id="exportOrders">엑셀 다운로드</button>
     </div>
     <table id="ordersTbl"><thead><tr><th>시간</th><th>테이블</th><th>항목</th><th>금액</th><th>상태</th></tr></thead><tbody></tbody></table>
@@ -555,46 +555,36 @@ init();
 </script>
 
 
-<script id="notify-only-tab-enforcer-v2">
+<script id="orders-sse-manager-v2">
 (function(){
-  function norm(s){return (s||'').replace(/\s+/g,' ').trim();}
-  function hasCaption(el){
+  if (window.__ORDERS_MANAGER_V2) return; window.__ORDERS_MANAGER_V2 = true;
+  var es = null, reopenTimer = null, last = Date.now();
+
+  function safeClose(){ try{ if(es){ es.close(); } }catch(_){ } es = null; }
+  function schedule(ms){ clearTimeout(reopenTimer); reopenTimer = setTimeout(open, ms||1500); }
+
+  function open(){
     try{
-      var t = norm(el.innerText||el.textContent||'');
-      return t.indexOf('알림 설정/점검') !== -1;
-    }catch(_){ return false; }
+      if (es && es.readyState === 1) return;
+      safeClose();
+      es = new EventSource('/api/events-orders');
+      window.__ORDERS_ES = es;
+
+      es.onopen = function(){ last = Date.now(); };
+      es.onmessage = function(){ last = Date.now(); };
+      es.addEventListener('order', function(){ last = Date.now(); try{ window.loadOrders && window.loadOrders(); }catch(_){ } });
+      es.onerror = function(){ safeClose(); schedule(1500); };
+    }catch(e){ schedule(3000); }
   }
-  function isNotifyTab(el){
-    return el && el.classList && el.classList.contains('tab') && el.getAttribute('data-tab')==='notify';
-  }
-  function ensureSingleNotifyTab(){
-    var tabs = document.querySelector('.tabs'); if(!tabs) return;
-    Array.from(tabs.querySelectorAll('*')).forEach(function(el){
-      if(hasCaption(el) && !isNotifyTab(el)){ el.remove(); }
-    });
-    var ex = tabs.querySelectorAll('.tab[data-tab=\"notify\"]');
-    for(var i=1;i<ex.length;i++){ ex[i].remove(); }
-    if(ex.length===0){
-      var codeTab = tabs.querySelector('.tab[data-tab=\"code\"]');
-      var nt = document.createElement('div');
-      nt.className = (codeTab && codeTab.className) ? codeTab.className.replace(/\\bactive\\b/g,'').trim() : 'tab';
-      nt.setAttribute('data-tab','notify');
-      nt.textContent = '알림 설정/점검';
-      if(codeTab){ codeTab.after(nt); } else { tabs.appendChild(nt); }
-    }
-    Array.from(tabs.querySelectorAll('.tab')).forEach(function(t){
-      t.textContent = norm(t.textContent).replace(/<+/g,'');
-    });
-  }
-  function killStraysOutsideTabs(){
-    Array.from(document.querySelectorAll('button,a,div,span')).forEach(function(el){
-      if(!isNotifyTab(el) && hasCaption(el)){ el.remove(); }
-    });
-  }
-  function tick(){ try{ ensureSingleNotifyTab(); killStraysOutsideTabs(); }catch(_){} }
-  document.addEventListener('DOMContentLoaded', tick);
-  window.addEventListener('load', function(){ setTimeout(tick,0); setTimeout(tick,300); setTimeout(tick,1000); });
-  new MutationObserver(tick).observe(document.documentElement||document.body, {childList:true, subtree:true});
+
+  if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', open); } else { open(); }
+
+  setInterval(function(){
+    if (!es || es.readyState === 2){ open(); return; }
+    if (Date.now() - last > 45000){ safeClose(); open(); }
+  }, 10000);
+
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible'){ open(); }});
 })();
 </script>
 
