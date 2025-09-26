@@ -7,7 +7,7 @@ export default async function handler(req) {
     const upstreamUrl = new URL('/events/orders', apiBase).toString();
     const auth = req.headers.get('authorization') || undefined;
     const upstream = await fetch(upstreamUrl, {
-      headers: { 'accept':'text/event-stream', ...(auth ? { 'authorization': auth } : {}) },
+      headers: { accept: 'text/event-stream', ...(auth ? { authorization: auth } : {}) },
       cache: 'no-store',
       redirect: 'follow',
     });
@@ -18,8 +18,11 @@ export default async function handler(req) {
     const ts = new TransformStream();
     const w = ts.writable.getWriter();
     const r = upstream.body.getReader();
+    const enc = new TextEncoder();
+    await w.write(enc.encode('retry: 5000\n\n'));
+    await w.write(enc.encode(': connected\n\n'));
     let alive = true;
-    const hb = setInterval(()=>{ if(!alive) return; try{ w.write(new TextEncoder().encode(':ping\n\n')); }catch(_){} }, 20000);
+    const hb = setInterval(()=>{ if(!alive) return; try{ w.write(enc.encode(': ping\n\n')); }catch(_){} }, 20000);
     (async () => {
       try{
         while(true){
@@ -27,7 +30,12 @@ export default async function handler(req) {
           if (done) break;
           if (value) await w.write(value);
         }
-      }catch(e){ } finally { alive=false; clearInterval(hb); try{ await w.close(); }catch(_){} }
+      }catch(e){}
+      finally{
+        alive=false;
+        clearInterval(hb);
+        try{ await w.close(); }catch(_){}
+      }
     })();
     return new Response(ts.readable, {
       status: 200,

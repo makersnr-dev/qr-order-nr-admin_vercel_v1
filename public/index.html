@@ -558,33 +558,25 @@ init();
 <script id="orders-sse-manager-v2">
 (function(){
   if (window.__ORDERS_MANAGER_V2) return; window.__ORDERS_MANAGER_V2 = true;
-  var es = null, reopenTimer = null, last = Date.now();
-
-  function safeClose(){ try{ if(es){ es.close(); } }catch(_){ } es = null; }
-  function schedule(ms){ clearTimeout(reopenTimer); reopenTimer = setTimeout(open, ms||1500); }
-
+  var es = null, last = Date.now();
   function open(){
     try{
-      if (es && es.readyState === 1) return;
-      safeClose();
+      if (es && (es.readyState === 0 || es.readyState === 1)) return;
+      try{ if(es){ es.close(); } }catch(_){}
       es = new EventSource('/api/events-orders');
       window.__ORDERS_ES = es;
-
       es.onopen = function(){ last = Date.now(); };
       es.onmessage = function(){ last = Date.now(); };
       es.addEventListener('order', function(){ last = Date.now(); try{ window.loadOrders && window.loadOrders(); }catch(_){ } });
-      es.onerror = function(){ safeClose(); schedule(1500); };
-    }catch(e){ schedule(3000); }
+      es.onerror = function(){ /* let native retry handle it */ };
+    }catch(e){}
   }
-
   if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', open); } else { open(); }
-
   setInterval(function(){
     if (!es || es.readyState === 2){ open(); return; }
-    if (Date.now() - last > 45000){ safeClose(); open(); }
+    if (Date.now() - last > 60000){ try{ es.close(); }catch(_){} es = null; open(); }
   }, 10000);
-
-  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible'){ open(); }});
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible'){ open(); } });
 })();
 </script>
 
