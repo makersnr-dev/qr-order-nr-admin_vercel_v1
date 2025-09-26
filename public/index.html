@@ -568,7 +568,7 @@ init();
       es.onopen = function(){ last = Date.now(); };
       es.onmessage = function(){ last = Date.now(); };
       es.addEventListener('order', function(){ last = Date.now(); try{ window.loadOrders && window.loadOrders(); }catch(_){ } });
-      es.onerror = function(){ /* let native retry handle it */ };
+      es.onerror = function(){ /* native retry only */ };
     }catch(e){}
   }
   if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', open); } else { open(); }
