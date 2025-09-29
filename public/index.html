@@ -128,8 +128,57 @@ async function init(){
 
 // Orders
 const ordersTbody = document.querySelector('#ordersTbl tbody');
+// -- accumulate orders instead of overwrite --
+const SEEN = new Set();
+function orderTime(o){
+  const t = o.createdAt || o.created || Date.now();
+  const d = new Date(t);
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  const hh=String(d.getHours()).padStart(2,'0'), mi=String(d.getMinutes()).padStart(2,'0');
+  return `${m}/${dd} ${hh}:${mi}`;
+}
+function summarizeItems(o){
+  try{
+    return (o.items||[]).map(function(pair){
+      var id=pair[0], q=pair[1];
+      return id + '×' + q;
+    }).join(', ');
+  }catch(_){ return ''; }
+}
+function computeAmount(o){
+  // If amount provided use it; otherwise try to compute with unit price in item tuple (id,qty,price?) or 0
+  if (typeof o.amount === 'number') return o.amount;
+  try{
+    return (o.items||[]).reduce(function(sum,p){
+      var q=p[1]||0; var price = (p.length>=3 ? (p[2]||0) : 0);
+      return sum + q*price;
+    }, 0);
+  }catch(_){ return 0; }
+}
+function appendOrderRow(o){
+  if(!o || !o.id) return;
+  if(SEEN.has(o.id)) return;
+  SEEN.add(o.id);
+  var tr = document.createElement('tr');
+  tr.innerHTML = '<td>'+orderTime(o)+'</td>'
+    + '<td>'+(o.tableNo||'')+'</td>'
+    + '<td>'+summarizeItems(o)+'</td>'
+    + '<td>'+ (computeAmount(o)).toLocaleString('ko-KR') +'</td>'
+    + '<td>'+(o.status||'')+'</td>';
+  // newest on top
+  if (ordersTbody.firstChild) ordersTbody.insertBefore(tr, ordersTbody.firstChild);
+  else ordersTbody.appendChild(tr);
+}
+
 function rowHtml(o){ const items=(o.items||[]).map(([id,q])=>`${id} x ${q}`).join(', '); return `<tr><td>${o.createdAt||''}</td><td>${o.tableNo||''}</td><td>${items}</td><td>${(o.amount||0).toLocaleString('ko-KR')}</td><td>${o.status||''}</td></tr>`; }
-async function loadOrders(){ const r=await fetch(api('/orders')); if(!r.ok) return; const arr=await r.json(); ordersTbody.innerHTML=arr.map(rowHtml).join(''); }
+async function loadOrders(){
+  try{
+    const r = await fetch(api('/orders'), { headers: authHeaders() });
+    const arr = await r.json();
+    arr.sort(function(a,b){ return (b.createdAt||b.created||0) - (a.createdAt||a.created||0); });
+    arr.forEach(appendOrderRow);
+  }catch(e){ console.warn('loadOrders failed', e); }
+}
 (function sse(){ try{ const es=new EventSource(api('/events/orders')); es.addEventListener('order', e=>{ loadOrders(); }); }catch(_){ /* fallback by timer, but silent */ setInterval(loadOrders,15000); } })();
 document.getElementById('exportOrders').onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } window.location.href = api('/export/orders.xlsx')+'?token='+TOKEN; };
 
@@ -272,6 +321,7 @@ function notifyBrowser(title, body){ try{ if(!('Notification' in window)) return
 function dedup(key){ NT.lastKeys.push({key,ts:Date.now()}); if(NT.lastKeys.length>NT.maxKeys) NT.lastKeys.shift(); const recent=NT.lastKeys.filter(x=>Date.now()-x.ts<5000).map(x=>x.key); return recent.filter(k=>k===key).length<=1; }
 function attachButtons(){ const btnE=document.getElementById('ntEnableSound'); if(btnE){ btnE.onclick=function(){ enableBeep(); beep(); log('소리 활성화됨'); }; } const btnT=document.getElementById('ntTestSound'); if(btnT){ btnT.onclick=function(){ enableBeep(); beep(); log('소리 테스트'); }; } const btnP=document.getElementById('ntAskPerm'); if(btnP){ btnP.onclick=function(){ try{ const perm=(window.Notification&&Notification.permission)||'unsupported'; if(perm==='granted'){ setPerm(); syncPermBtn(); log('브라우저 알림: 이미 허용됨'); return;} if(perm==='denied'){ setPerm(); syncPermBtn(); log('브라우저 알림: 차단됨 (브라우저 설정에서 변경 필요)'); return;} Notification.requestPermission().then(p=>{ setPerm(); syncPermBtn(); if(p==='granted'){ notifyBrowser('알림 켜짐','이제 직원 호출 알림을 받습니다.'); } }); }catch(_){ setPerm(); syncPermBtn(); } }; } const btnB=document.getElementById('ntTestBrowser'); if(btnB){ btnB.onclick=function(){ notifyBrowser('테스트 알림','브라우저 알림이 동작 중입니다.'); beep(); }; } }
 function parsePayload(data){ try{ return JSON.parse(data); }catch(_){ return { message: data }; } }
+function handleOrder(payload){ try{ if(payload && payload.order) appendOrderRow(payload.order); }catch(_){ } }
 function handleCall(payload){ const table = payload.table || payload.tableNo || payload.t || ''; const key = 'call:'+String(table||'')+':'+(payload.at||payload.id||payload.ts||''); if(!dedup(key)) return; beep(); notifyBrowser('직원 호출', (table?('테이블 '+table+'에서 호출'): '직원 호출') ); try{ log('[직원 호출] '+ (table?('테이블 '+table):'')); }catch(_){ } }
 function wireSSE(){ if(!window.EventSource){ setConn('down'); return;} setConn('checking'); const base=(window.API||''); const endpoints=['/events/orders','/events','/sse']; let connected=false,tried=0; function tryNext(){ if(connected||tried>=endpoints.length){ if(!connected) setConn('down'); return;} const ep=endpoints[tried++]; try{ const es=new EventSource(base+ep); es.addEventListener('open',()=>{ connected=true; setConn('ok'); log('SSE 연결: '+ep); }); es.addEventListener('error',()=>{ if(!connected){ log('SSE 실패: '+ep); es.close(); tryNext(); } }); ['staff','staff_call','assist','call','notify','message','order'].forEach(function(ev){ es.addEventListener(ev,function(e){ const p=parsePayload(e.data||''); if(p && (String(p.type||'').toLowerCase().includes('staff') || ev==='staff' || ev==='staff_call' || ev==='assist' || ev==='call')) handleCall(p); }); }); es.onmessage=function(e){ const p=parsePayload(e.data||''); if(p && (p.type==='staff_call'||p.kind==='staff_call'||p.event==='staff_call')) handleCall(p); }; }catch(_){ tryNext(); } } tryNext(); }
 document.addEventListener('DOMContentLoaded', function(){ try{ NT.enabled = localStorage.getItem(SKEY)==='1'; }catch(_){ } setPerm(); syncPermBtn(); attachButtons(); wireSSE(); });
