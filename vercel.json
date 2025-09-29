@@ -1,0 +1,13 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/admin-config",
+      "destination": "/api/admin-config"
+    },
+    {
+      "source": "/events/orders",
+      "destination": "/api/events-orders"
+    }
+  ]
+}
