@@ -115,6 +115,7 @@
 </div>
 <script>
 
+
 let API='', ORDER_BASE='', TOKEN=localStorage.getItem('adminToken')||'';
 function authHeaders(){ return { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN }; }
 function api(p){ return API + p; }
@@ -157,8 +158,6 @@ function summarizeItems(o){
       var name = (window.MENU_MAP && key in MENU_MAP) ? MENU_MAP[key] : key;
       return name + '×' + q;
     }).join(', ');
-  }catch(_){ return ''; }
-}).join(', ');
   }catch(_){ return ''; }
 }
 function computeAmount(o){
