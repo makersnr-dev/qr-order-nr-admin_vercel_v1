@@ -132,7 +132,7 @@ async function init(){
   const r=await fetch('/admin-config'); const j=await r.json(); API=j.apiBase; ORDER_BASE=j.orderBase;
   if(!TOKEN){ /* not logged in: don't alert/pop; keep UI idle */ return; }
   // After login only: load data. Failures are shown minimally or silently.
-  try{ await loadMenu(); await loadOrders(); await loadDailyCode(); }catch(e){ console.warn('initial load error', e); }
+  try{ await Promise.all([loadOrders(), loadMenu(), loadDailyCode()]); }catch(e){ console.warn('initial load error', e); }
 }
 
 // Orders
@@ -150,9 +150,8 @@ function orderTime(o){
 function summarizeItems(o){
   try{
     return (o.items||[]).map(function(pair){
-      var id = String(pair[0]), q = pair[1];
-      var name = (MENU_MAP && MENU_MAP[id]) ? MENU_MAP[id] : id;
-      return name + '×' + q;
+      var id=pair[0], q=pair[1];
+      return id + '×' + q;
     }).join(', ');
   }catch(_){ return ''; }
 }
@@ -204,7 +203,7 @@ function appendDeliveryRow(o){
   else deliveryTbody.appendChild(tr);
 }
 
-function rowHtml(o){ const items=(o.items||[]).map(([id,q])=>`${(MENU_MAP && MENU_MAP[String(id)]) ? MENU_MAP[String(id)] : id} x ${q}`).join(', '); return `<tr><td>${o.createdAt||''}</td><td>${o.tableNo||''}</td><td>${items}</td><td>${(o.amount||0).toLocaleString('ko-KR')}</td><td>${o.status||''}</td></tr>`; }
+function rowHtml(o){ const items=(o.items||[]).map(([id,q])=>`${id} x ${q}`).join(', '); return `<tr><td>${o.createdAt||''}</td><td>${o.tableNo||''}</td><td>${items}</td><td>${(o.amount||0).toLocaleString('ko-KR')}</td><td>${o.status||''}</td></tr>`; }
 async function loadOrders(){
   try{
     const r = await fetch(api('/orders'), { headers: authHeaders() });
@@ -227,8 +226,7 @@ document.getElementById('makeQR').onclick = ()=>{
 
 // Menu (edit/save/delete/add)
 const menuTbody = document.querySelector('#menuTbl tbody');
-var MENU_MAP = {};
-async function loadMenu(){ const r=await fetch(api('/menu')); if(!r.ok) return; const arr=await r.json(); MENU_MAP = {}; try{ (arr||[]).forEach(m=>{ MENU_MAP[String(m.id)] = m.name || String(m.id); }); }catch(_){ } menuTbody.innerHTML = arr.map(trHtml).join(''); }
+async function loadMenu(){ const r=await fetch(api('/menu')); if(!r.ok) return; const arr=await r.json(); menuTbody.innerHTML = arr.map(trHtml).join(''); }
 function trHtml(m){
   return `<tr data-id="${m.id}">
     <td>${m.id}</td>
