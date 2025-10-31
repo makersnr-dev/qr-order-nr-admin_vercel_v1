@@ -321,7 +321,7 @@ setInterval(updateRemain, 60000);
 async function loadDailyCode(){
   if(!TOKEN) return;
   try{
-    const r=await fetch401(api('/daily-code'), { headers: authHeaders() });
+    const r=await fetch401(ORDER_BASE + '/daily-code');
     if(!r.ok) return; // silent
     const j=await r.json();
     dcDate.textContent='('+j.date+')'; dcCode.value=j.code;
