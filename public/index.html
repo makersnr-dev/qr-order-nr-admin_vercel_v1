@@ -150,9 +150,12 @@ function orderTime(o){
 function summarizeItems(o){
   try{
     return (o.items||[]).map(function(pair){
-      var id=pair[0], q=pair[1];
-      return id + '×' + q;
+      var id = String(pair[0]), q=pair[1];
+      var name = (MENU_MAP && MENU_MAP[id]) ? MENU_MAP[id] : id;
+      return name + '×' + q;
     }).join(', ');
+  }catch(_){ return ''; }
+}).join(', ');
   }catch(_){ return ''; }
 }
 function computeAmount(o){
@@ -226,7 +229,9 @@ document.getElementById('makeQR').onclick = ()=>{
 
 // Menu (edit/save/delete/add)
 const menuTbody = document.querySelector('#menuTbl tbody');
-async function loadMenu(){ const r=await fetch(api('/menu')); if(!r.ok) return; const arr=await r.json(); menuTbody.innerHTML = arr.map(trHtml).join(''); }
+async var MENU_MAP = {};
+async function loadMenu(){ const r=await fetch(api('/menu')); if(!r.ok) return; const arr=await r.json(); MENU_MAP = {}; try{ (arr||[]).forEach(m=>{ MENU_MAP[String(m.id)] = m.name || String(m.id); }); }catch(_){}
+    menuTbody.innerHTML = arr.map(trHtml).join(''); }
 function trHtml(m){
   return `<tr data-id="${m.id}">
     <td>${m.id}</td>
