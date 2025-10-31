@@ -132,7 +132,7 @@ document.getElementById('logoutBtn').onclick = ()=>{ localStorage.removeItem('ad
 
 async function init(){
   const r=await fetch('/admin-config'); const j=await r.json(); API=j.apiBase; ORDER_BASE=j.orderBase;
-  if(!TOKEN){ /* not logged in: don't alert/pop; keep UI idle */ return; }
+  if(!TOKEN){ location.href='/login'; return; }
   // After login only: load data. Failures are shown minimally or silently.
   try{ await Promise.all([loadOrders(), loadMenu(), loadDailyCode()]); }catch(e){ console.warn('initial load error', e); }
 }
