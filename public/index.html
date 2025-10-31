@@ -43,7 +43,7 @@
 </div>
 </div>
 <div class="tabs">
-<div class="tab active" data-tab="orders"><span>주문목록</span><span class="badge" id="badge-orders">0</span></div>
+<div class="tab active" data-tab="orders"><span>매장</span><span class="badge" id="badge-orders">0</span></div>
 <div class="tab" data-tab="qr">QR 배포</div>
 <div class="tab" data-tab="menu">메뉴 관리</div>
 <div class="tab" data-tab="code">결제 코드</div>
@@ -51,10 +51,10 @@
 <div class="tab" data-tab="delivery"><span>배달/예약</span><span class="badge" id="badge-delivery">0</span></div></div>
 <div class="card" id="pane-orders">
 <div class="row" style="justify-content:space-between">
-<div><b>주문목록</b></div>
+<div><b>매장 주문</b></div>
 <button class="btn" id="exportOrders">엑셀 다운로드</button>
 </div>
-<table id="ordersTbl"><thead><tr><th>시간</th><th>테이블</th><th>항목</th><th>금액</th><th>상태</th></tr></thead><tbody></tbody></table>
+<table id="ordersTbl"><thead><tr><th>시간</th><th>테이블</th><th>내역</th><th>금액</th><th>상태</th></tr></thead><tbody></tbody></table>
 </div><div class="card hidden" id="pane-delivery">
 <div class="row" style="justify-content:space-between">
 <div><b>배달/예약 주문</b></div>
@@ -114,6 +114,7 @@
 <div class="muted" id="ntLog" style="margin-top:10px;white-space:pre-line"></div>
 </div>
 <script>
+
 let API='', ORDER_BASE='', TOKEN=localStorage.getItem('adminToken')||'';
 function authHeaders(){ return { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN }; }
 function api(p){ return API + p; }
@@ -147,12 +148,17 @@ function orderTime(o){
   const hh=String(d.getHours()).padStart(2,'0'), mi=String(d.getMinutes()).padStart(2,'0');
   return `${m}/${dd} ${hh}:${mi}`;
 }
+
 function summarizeItems(o){
   try{
     return (o.items||[]).map(function(pair){
-      var id=pair[0], q=pair[1];
-      return id + '×' + q;
+      var id = pair[0], q = pair[1];
+      var key = (id==null)? '' : String(id);
+      var name = (window.MENU_MAP && key in MENU_MAP) ? MENU_MAP[key] : key;
+      return name + '×' + q;
     }).join(', ');
+  }catch(_){ return ''; }
+}).join(', ');
   }catch(_){ return ''; }
 }
 function computeAmount(o){
@@ -165,8 +171,12 @@ function computeAmount(o){
     }, 0);
   }catch(_){ return 0; }
 }
+
 function appendOrderRow(o){
   if(!o || !o.id) return;
+  // Only show store orders: exclude delivery/reserve types
+  const isDeliveryLike = (o.orderType === 'delivery') || (o.orderType === 'reserve') || (o.tableNo === '배달') || !!o.deliveryInfo;
+  if(isDeliveryLike) return;
   if(SEEN.has(o.id)) return;
   SEEN.add(o.id);
   var tr = document.createElement('tr');
@@ -175,22 +185,22 @@ function appendOrderRow(o){
     + '<td>'+summarizeItems(o)+'</td>'
     + '<td>'+ (computeAmount(o)).toLocaleString('ko-KR') +'</td>'
     + '<td>'+(o.status||'')+'</td>';
-  // newest on top
   if (ordersTbody.firstChild) ordersTbody.insertBefore(tr, ordersTbody.firstChild);
   else ordersTbody.appendChild(tr);
 }
 
 
+
 function appendDeliveryRow(o){
   if(!o || !o.id) return;
-  // qualify: explicit orderType or table '배달'
-  const isDelivery = (o.orderType === 'delivery') || (o.tableNo === '배달');
-  if(!isDelivery) return;
+  const isDelivery = (o.orderType === 'delivery') || (o.tableNo === '배달') || !!o.deliveryInfo;
+  const isReserve = (o.orderType === 'reserve') || (o.deliveryInfo && o.deliveryInfo.reserveTime);
+  if(!(isDelivery || isReserve)) return;
   var tr = document.createElement('tr');
-  var addr = (o.deliveryInfo && o.deliveryInfo.addr) ? o.deliveryInfo.addr : '';
-  var name = (o.deliveryInfo && o.deliveryInfo.name) ? o.deliveryInfo.name : '';
-  var phone = (o.deliveryInfo && o.deliveryInfo.phone) ? o.deliveryInfo.phone : '';
-  var reserve = (o.deliveryInfo && o.deliveryInfo.reserveTime) ? o.deliveryInfo.reserveTime : '';
+  var addr = (o.deliveryInfo && o.deliveryInfo.addr) ? o.deliveryInfo.addr : (o.addr||'');
+  var name = (o.deliveryInfo && o.deliveryInfo.name) ? o.deliveryInfo.name : (o.name||'');
+  var phone = (o.deliveryInfo && o.deliveryInfo.phone) ? o.deliveryInfo.phone : (o.phone||'');
+  var reserve = (o.deliveryInfo && o.deliveryInfo.reserveTime) ? o.deliveryInfo.reserveTime : (o.reserveTime||'');
   tr.innerHTML = '<td>'+orderTime(o)+'</td>'
     + '<td>'+name+'</td>'
     + '<td>'+phone+'</td>'
@@ -226,7 +236,14 @@ document.getElementById('makeQR').onclick = ()=>{
 
 // Menu (edit/save/delete/add)
 const menuTbody = document.querySelector('#menuTbl tbody');
-async function loadMenu(){ const r=await fetch(api('/menu')); if(!r.ok) return; const arr=await r.json(); menuTbody.innerHTML = arr.map(trHtml).join(''); }
+async function loadMenu(){ 
+  const r=await fetch(api('/menu')); 
+  const arr=await r.json(); 
+  // Build id->name map for item name resolution
+  window.MENU_MAP = {}
+  ;(arr||[]).forEach(m=>{ if(m && m.id!=null) MENU_MAP[String(m.id)] = m.name||String(m.id); });
+  menuTbody.innerHTML = arr.map(trHtml).join(''); 
+}
 function trHtml(m){
   return `<tr data-id="${m.id}">
     <td>${m.id}</td>
@@ -491,6 +508,6 @@ document.addEventListener('DOMContentLoaded', function(){ try{ NT.enabled = loca
     clearBadge
   };
 })();
-</script>
 
+</script>
 </body></html>
