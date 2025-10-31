@@ -37,8 +37,7 @@
     </div>
   </div>
 
-  <div class="tabs">
-    <div class="tab" data-tab="delivery">배달주문</div>
+  <div class="tabs">\n    <div class="tab" data-tab="delivery">배달주문</div>
     <div class="tab active" data-tab="orders">주문목록</div>
     <div class="tab" data-tab="qr">QR 배포</div>
     <div class="tab" data-tab="menu">메뉴 관리</div>
@@ -102,8 +101,7 @@
       <tbody></tbody>
     </table>
   </div>
-
-<div id="pane-notify" class="card hidden">
+\n<div id="pane-notify" class="card hidden">
     <div class="row" style="justify-content:space-between;align-items:center">
       <b>알림 설정/점검</b>
       <span class="pill" id="ntConn">확인 중…</span>
@@ -287,6 +285,10 @@ copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.
 init();
 
 // === 배달주문 탭 ===
+let API='', ORDER_BASE='', TOKEN=localStorage.getItem('adminToken')||'';
+function authHeaders(){ return { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN }; }
+function api(p){ return API + p; }
+
 async function fetchDeliveryOrders(){
   const res = await fetch(api('/delivery-orders'), { headers: authHeaders() });
   if(!res.ok){ const t = await res.text(); throw new Error(t); }
@@ -295,6 +297,7 @@ async function fetchDeliveryOrders(){
 }
 function renderDelivery(orders){
   const tbody = document.querySelector('#deliveryTbl tbody');
+  if(!tbody) return;
   tbody.innerHTML = '';
   const filt = document.getElementById('d_filter').value;
   for(const o of orders){
@@ -315,21 +318,14 @@ function renderDelivery(orders){
   }
 }
 async function loadDelivery(){
-  try{
-    const orders = await fetchDeliveryOrders();
-    renderDelivery(orders);
-  }catch(e){ alert('배달주문 로드 실패: '+e.message); }
+  try{ const orders = await fetchDeliveryOrders(); renderDelivery(orders); }
+  catch(e){ alert('배달주문 로드 실패: '+e.message); }
 }
-document.getElementById('d_refresh').onclick = loadDelivery;
-document.getElementById('d_filter').onchange = loadDelivery;
-
-// delegate updates
 document.addEventListener('change', async (e)=>{
   const sel = e.target.closest('select.d_status');
   if(sel){
     const id = sel.getAttribute('data-id');
-    const body = JSON.stringify({ status: sel.value });
-    await fetch(api('/delivery-orders/'+id), { method:'PATCH', headers: authHeaders(), body });
+    await fetch(api('/delivery-orders/'+id), { method:'PATCH', headers: authHeaders(), body: JSON.stringify({ status: sel.value }) });
   }
 });
 document.addEventListener('click', async (e)=>{
@@ -342,6 +338,18 @@ document.addEventListener('click', async (e)=>{
     }
   }
 });
+// Tab open hook
+document.addEventListener('click', (e)=>{
+  const tab = e.target.closest('.tab[data-tab="delivery"]');
+  if(tab){ setTabActive('delivery'); loadDelivery(); }
+});
+// Init API base from /admin-config
+(async function(){
+  try{
+    const { apiBase, orderBase } = await (await fetch('/admin-config')).json();
+    API = apiBase||''; ORDER_BASE = orderBase||API;
+  }catch(_){}
+})();
 
 </script>
 
@@ -386,6 +394,10 @@ function hookSave(c,ui){ if(!ui.save) return; ui.save.onclick=function(){ if(!HA
 document.addEventListener('DOMContentLoaded', function(){ var c=card(); var ui=ensureUI(c); render(ui.grid); wireDownload(c); hookSave(c,ui); });
 })();
 // === 배달주문 탭 ===
+let API='', ORDER_BASE='', TOKEN=localStorage.getItem('adminToken')||'';
+function authHeaders(){ return { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN }; }
+function api(p){ return API + p; }
+
 async function fetchDeliveryOrders(){
   const res = await fetch(api('/delivery-orders'), { headers: authHeaders() });
   if(!res.ok){ const t = await res.text(); throw new Error(t); }
@@ -394,6 +406,7 @@ async function fetchDeliveryOrders(){
 }
 function renderDelivery(orders){
   const tbody = document.querySelector('#deliveryTbl tbody');
+  if(!tbody) return;
   tbody.innerHTML = '';
   const filt = document.getElementById('d_filter').value;
   for(const o of orders){
@@ -414,21 +427,14 @@ function renderDelivery(orders){
   }
 }
 async function loadDelivery(){
-  try{
-    const orders = await fetchDeliveryOrders();
-    renderDelivery(orders);
-  }catch(e){ alert('배달주문 로드 실패: '+e.message); }
+  try{ const orders = await fetchDeliveryOrders(); renderDelivery(orders); }
+  catch(e){ alert('배달주문 로드 실패: '+e.message); }
 }
-document.getElementById('d_refresh').onclick = loadDelivery;
-document.getElementById('d_filter').onchange = loadDelivery;
-
-// delegate updates
 document.addEventListener('change', async (e)=>{
   const sel = e.target.closest('select.d_status');
   if(sel){
     const id = sel.getAttribute('data-id');
-    const body = JSON.stringify({ status: sel.value });
-    await fetch(api('/delivery-orders/'+id), { method:'PATCH', headers: authHeaders(), body });
+    await fetch(api('/delivery-orders/'+id), { method:'PATCH', headers: authHeaders(), body: JSON.stringify({ status: sel.value }) });
   }
 });
 document.addEventListener('click', async (e)=>{
@@ -441,6 +447,18 @@ document.addEventListener('click', async (e)=>{
     }
   }
 });
+// Tab open hook
+document.addEventListener('click', (e)=>{
+  const tab = e.target.closest('.tab[data-tab="delivery"]');
+  if(tab){ setTabActive('delivery'); loadDelivery(); }
+});
+// Init API base from /admin-config
+(async function(){
+  try{
+    const { apiBase, orderBase } = await (await fetch('/admin-config')).json();
+    API = apiBase||''; ORDER_BASE = orderBase||API;
+  }catch(_){}
+})();
 
 </script>
 
@@ -464,6 +482,10 @@ function wireSSE(){ if(!window.EventSource){ setConn('down'); return;} setConn('
 document.addEventListener('DOMContentLoaded', function(){ try{ NT.enabled = localStorage.getItem(SKEY)==='1'; }catch(_){ } setPerm(); syncPermBtn(); attachButtons(); wireSSE(); });
 })();
 // === 배달주문 탭 ===
+let API='', ORDER_BASE='', TOKEN=localStorage.getItem('adminToken')||'';
+function authHeaders(){ return { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN }; }
+function api(p){ return API + p; }
+
 async function fetchDeliveryOrders(){
   const res = await fetch(api('/delivery-orders'), { headers: authHeaders() });
   if(!res.ok){ const t = await res.text(); throw new Error(t); }
@@ -472,6 +494,7 @@ async function fetchDeliveryOrders(){
 }
 function renderDelivery(orders){
   const tbody = document.querySelector('#deliveryTbl tbody');
+  if(!tbody) return;
   tbody.innerHTML = '';
   const filt = document.getElementById('d_filter').value;
   for(const o of orders){
@@ -492,21 +515,14 @@ function renderDelivery(orders){
   }
 }
 async function loadDelivery(){
-  try{
-    const orders = await fetchDeliveryOrders();
-    renderDelivery(orders);
-  }catch(e){ alert('배달주문 로드 실패: '+e.message); }
+  try{ const orders = await fetchDeliveryOrders(); renderDelivery(orders); }
+  catch(e){ alert('배달주문 로드 실패: '+e.message); }
 }
-document.getElementById('d_refresh').onclick = loadDelivery;
-document.getElementById('d_filter').onchange = loadDelivery;
-
-// delegate updates
 document.addEventListener('change', async (e)=>{
   const sel = e.target.closest('select.d_status');
   if(sel){
     const id = sel.getAttribute('data-id');
-    const body = JSON.stringify({ status: sel.value });
-    await fetch(api('/delivery-orders/'+id), { method:'PATCH', headers: authHeaders(), body });
+    await fetch(api('/delivery-orders/'+id), { method:'PATCH', headers: authHeaders(), body: JSON.stringify({ status: sel.value }) });
   }
 });
 document.addEventListener('click', async (e)=>{
@@ -519,6 +535,18 @@ document.addEventListener('click', async (e)=>{
     }
   }
 });
+// Tab open hook
+document.addEventListener('click', (e)=>{
+  const tab = e.target.closest('.tab[data-tab="delivery"]');
+  if(tab){ setTabActive('delivery'); loadDelivery(); }
+});
+// Init API base from /admin-config
+(async function(){
+  try{
+    const { apiBase, orderBase } = await (await fetch('/admin-config')).json();
+    API = apiBase||''; ORDER_BASE = orderBase||API;
+  }catch(_){}
+})();
 
 </script>
 
