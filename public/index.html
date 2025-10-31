@@ -4,41 +4,28 @@
 <style>
   :root{--bg:#0b0f14;--panel:#0d131b;--line:#223;--text:#e6edf3;--muted:#9fb0c3}
   body{font-family:system-ui,Noto Sans KR,sans-serif;background:var(--bg);color:var(--text);margin:0}
-  .wrap{max-width:1200px;margin:22px auto;padding:16px}
-  .tabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .wrap{max-width:980px;margin:22px auto;padding:16px}
+  .tabs{display:flex;gap:8px;margin-bottom:12px}
   .tab{padding:10px 14px;border:1px solid #294760;border-radius:10px;background:#0c1a28;cursor:pointer}
   .tab.active{outline:2px solid #2a6ea9}
   .card{background:#0d131b;border:1px solid #223;border-radius:14px;padding:14px;margin-bottom:14px}
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .btn{padding:8px 12px;border:1px solid #294760;border-radius:10px;background:linear-gradient(180deg,#0d2233,#0a1824);color:#e6edf3;cursor:pointer}
-  .btn.danger{background:linear-gradient(180deg,#2a0d0d,#1a0a0a);border-color:#4a1f1f}
-  .btn:disabled{opacity:0.5;cursor:not-allowed}
   input,select{padding:8px;border-radius:10px;border:1px solid #223;background:#0e1520;color:#e6edf3}
-  table{width:100%;border-collapse:collapse} 
-  th,td{border-bottom:1px solid #222;padding:10px;text-align:left;vertical-align:top}
-  th{background:#0a0f14;font-weight:600}
+  table{width:100%;border-collapse:collapse} th,td{border-bottom:1px solid #222;padding:8px;text-align:left}
   .pill{display:inline-block;padding:4px 8px;border-radius:24px;border:1px solid #345;font-size:12px}
   .pill.ok{background:#0b2a18;border-color:#1f4e32;color:#b3ffcf}
   .pill.warn{background:#2a160b;border-color:#4e331f;color:#ffd9b3}
-  .pill.bad{background:#2a0b0b;border-color:#4e1f1f;color:#ffb3b3}
-  .muted{color:var(--muted);font-size:13px} 
-  .hidden{display:none}
-  .delivery-badge{background:#1a2a3a;border:1px solid #2a4a6a;padding:2px 6px;border-radius:4px;font-size:11px;color:#7ab3ff}
-  .delivery-info{background:#0a1520;padding:8px;margin-top:6px;border-radius:6px;border-left:3px solid #2a6ea9;font-size:12px}
-  .delivery-info div{margin:3px 0}
-  .status-select{padding:6px 8px;border-radius:6px;border:1px solid #223;background:#0e1520;color:#e6edf3;font-size:13px;cursor:pointer}
-  .status-select.접수{background:#1a2a3a;border-color:#2a4a6a;color:#7ab3ff}
-  .status-select.준비중{background:#2a2a1a;border-color:#4a4a2a;color:#ffeb7a}
-  .status-select.배달중{background:#1a2a2a;border-color:#2a4a4a;color:#7affeb}
-  .status-select.완료{background:#1a2a1a;border-color:#2a4a2a;color:#b3ffb3}
-  .status-select.취소{background:#2a1a1a;border-color:#4a2a2a;color:#ffb3b3}
+  .muted{color:var(--muted)} .hidden{display:none}
 
-/* === QR grid === */
+/* === QR grid (v5.13 n2b) === */
 .qr-grid{width:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:10px}
 .qr-card{background:#0e1a26;border:1px solid #234;border-radius:12px;padding:10px;text-align:center}
 .qr-card img{width:100%;height:auto;image-rendering:pixelated}
 .qr-meta{margin-top:6px;font-weight:600}
 .qr-actions{display:flex;gap:8px;justify-content:center;margin-top:6px}
+.pill.ok{background:#0b2a18;border-color:#1f4e32;color:#b3ffcf}
+.pill.bad{background:#2a160b;border-color:#4e331f;color:#ffd9b3}
 </style>
 </head><body>
 <div class="wrap">
@@ -51,91 +38,36 @@
   </div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="store-orders">매장 주문</div>
-    <div class="tab" data-tab="delivery-orders">배달/예약 주문</div>
+    <div class="tab active" data-tab="orders">주문목록</div>
     <div class="tab" data-tab="qr">QR 배포</div>
     <div class="tab" data-tab="menu">메뉴 관리</div>
     <div class="tab" data-tab="code">결제 코드</div>
     <div class="tab" data-tab="notify">알림 설정</div>
   </div>
 
-  <!-- 매장 주문 탭 -->
-  <div id="pane-store-orders" class="card">
+  <div id="pane-orders" class="card">
     <div class="row" style="justify-content:space-between">
-      <div><b>매장 주문</b> <span class="muted" id="storeOrderCount"></span></div>
-      <div class="row">
-        <button class="btn" id="exportStoreOrders">엑셀 다운로드</button>
-      </div>
+      <div><b>주문목록</b></div>
+      <button class="btn" id="exportOrders">엑셀 다운로드</button>
     </div>
-    <table id="storeOrdersTbl">
-      <thead>
-        <tr>
-          <th style="width:130px">시간</th>
-          <th style="width:100px">테이블</th>
-          <th>주문 항목</th>
-          <th style="width:100px">금액</th>
-          <th style="width:120px">상태</th>
-          <th style="width:100px">동작</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+    <table id="ordersTbl"><thead><tr><th>시간</th><th>테이블</th><th>항목</th><th>금액</th><th>상태</th></tr></thead><tbody></tbody></table>
   </div>
 
-  <!-- 배달/예약 주문 탭 -->
-  <div id="pane-delivery-orders" class="card hidden">
-    <div class="row" style="justify-content:space-between">
-      <div><b>배달/예약 주문</b> <span class="muted" id="deliveryOrderCount"></span></div>
-      <div class="row">
-        <button class="btn" id="exportDeliveryOrders">엑셀 다운로드</button>
-      </div>
-    </div>
-    <table id="deliveryOrdersTbl">
-      <thead>
-        <tr>
-          <th style="width:130px">시간</th>
-          <th style="width:120px">예약일시</th>
-          <th>고객정보 & 주문</th>
-          <th style="width:100px">금액</th>
-          <th style="width:120px">상태</th>
-          <th style="width:100px">동작</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
-  <!-- QR 배포 탭 -->
   <div id="pane-qr" class="card hidden">
-    <div class="row">
-      <input id="qrTable" placeholder="테이블 번호"/> 
-      <button class="btn" id="makeQR">QR 생성</button> 
-      <a id="dlPng" class="btn" href="#" download="qr.png">PNG 다운로드</a>
-    </div>
+    <div class="row"><input id="qrTable" placeholder="테이블 번호"/> <button class="btn" id="makeQR">QR 생성</button> <a id="dlPng" class="btn" href="#" download="qr.png">PNG 다운로드</a>
+</div>
     <div style="margin-top:10px"><img id="qrImg" style="background:#fff;border-radius:8px"/></div>
-    <h4 data-det-saved>저장된 QR</h4>
-    <div id="qrSavedList" class="qr-grid"></div>
-  </div>
+  
+  <h4 data-det-saved>저장된 QR</h4>
+  <div id="qrSavedList" class="qr-grid"></div>
+</div>
 
-  <!-- 메뉴 관리 탭 -->
   <div id="pane-menu" class="card hidden">
-    <div class="row">
-      <input id="m_id" placeholder="id"/>
-      <input id="m_name" placeholder="이름"/>
-      <input id="m_price" placeholder="가격" type="number"/>
-      <button class="btn" id="m_add">추가</button>
-    </div>
-    <table id="menuTbl">
-      <thead><tr><th>ID</th><th>이름</th><th>가격</th><th>활성</th><th>동작</th></tr></thead>
-      <tbody></tbody>
-    </table>
-    <div class="row" style="margin-top:10px">
-      <input type="file" id="xlsxFile"/>
-      <button class="btn" id="m_upload">엑셀 업로드</button>
-    </div>
+    <div class="row"><input id="m_id" placeholder="id"/><input id="m_name" placeholder="이름"/><input id="m_price" placeholder="가격" type="number"/><button class="btn" id="m_add">추가</button></div>
+    <table id="menuTbl"><thead><tr><th>ID</th><th>이름</th><th>가격</th><th>활성</th><th>동작</th></tr></thead><tbody></tbody></table>
+    <div class="row" style="margin-top:10px"><input type="file" id="xlsxFile"/><button class="btn" id="m_upload">엑셀 업로드</button></div>
   </div>
 
-  <!-- 결제 코드 탭 -->
   <div id="pane-code" class="card hidden">
     <div class="row">
       <div>오늘의 결제 코드 <span id="dcDate" class="muted"></span></div>
@@ -150,7 +82,6 @@
     </div>
   </div>
 
-  <!-- 알림 설정 탭 -->
   <div id="pane-notify" class="card hidden">
     <div class="row" style="justify-content:space-between;align-items:center">
       <b>알림 설정/점검</b>
@@ -164,7 +95,7 @@
     </div>
     <div class="muted" style="margin-top:8px">
       - 소리는 브라우저 정책상 <b>한 번 클릭</b>으로 활성화해야 합니다. 위 버튼을 먼저 눌러 주세요.<br>
-      - 페이지가 열려 있어야 실시간 알림을 받습니다.
+      - 페이지가 열려 있어야 실시간 알림을 받습니다. (무료 구성, 백그라운드 푸시는 미구현)
     </div>
     <div class="row" style="margin-top:12px; gap:8px">
       <span>브라우저 권한:</span> <span id="ntPerm" class="pill">확인중</span>
@@ -172,379 +103,97 @@
     <div id="ntLog" class="muted" style="margin-top:10px;white-space:pre-line"></div>
   </div>
 
+
 <script>
 let API='', ORDER_BASE='', TOKEN=localStorage.getItem('adminToken')||'';
 function authHeaders(){ return { 'Content-Type':'application/json', 'Authorization':'Bearer '+TOKEN }; }
 function api(p){ return API + p; }
-
 function setTabActive(name){
   document.querySelectorAll('.tab').forEach(t=> t.classList.remove('active'));
-  const targetTab = document.querySelector(`.tab[data-tab="${name}"]`);
-  if (targetTab) targetTab.classList.add('active');
-  
+  document.querySelector(`.tab[data-tab="${name}"]`).classList.add('active');
   document.querySelectorAll('[id^=pane-]').forEach(p=> p.classList.add('hidden'));
-  const targetPane = document.getElementById('pane-'+name);
-  if (targetPane) targetPane.classList.remove('hidden');
+  document.getElementById('pane-'+name).classList.remove('hidden');
 }
-
+// tabs
 document.querySelectorAll('.tab').forEach(t=> t.onclick=()=> setTabActive(t.dataset.tab));
+
 document.getElementById('logoutBtn').onclick = ()=>{ localStorage.removeItem('adminToken'); TOKEN=''; location.href='/login'; };
 
 async function init(){
   const r=await fetch('/admin-config'); const j=await r.json(); API=j.apiBase; ORDER_BASE=j.orderBase;
-  if(!TOKEN){ return; }
+  if(!TOKEN){ /* not logged in: don't alert/pop; keep UI idle */ return; }
+  // After login only: load data. Failures are shown minimally or silently.
   try{ await Promise.all([loadOrders(), loadMenu(), loadDailyCode()]); }catch(e){ console.warn('initial load error', e); }
 }
 
-// ===== 주문 관리 (매장/배달 분리) =====
-const storeOrdersTbody = document.querySelector('#storeOrdersTbl tbody');
-const deliveryOrdersTbody = document.querySelector('#deliveryOrdersTbl tbody');
-const SEEN_STORE = new Set();
-const SEEN_DELIVERY = new Set();
-
+// Orders
+const ordersTbody = document.querySelector('#ordersTbl tbody');
+// -- accumulate orders instead of overwrite --
+const SEEN = new Set();
 function orderTime(o){
   const t = o.createdAt || o.created || Date.now();
   const d = new Date(t);
-  const m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
   const hh=String(d.getHours()).padStart(2,'0'), mi=String(d.getMinutes()).padStart(2,'0');
   return `${m}/${dd} ${hh}:${mi}`;
 }
-
 function summarizeItems(o){
   try{
     return (o.items||[]).map(function(pair){
-      return pair[0] + '×' + pair[1];
+      var id=pair[0], q=pair[1];
+      return id + '×' + q;
     }).join(', ');
   }catch(_){ return ''; }
 }
-
 function computeAmount(o){
+  // If amount provided use it; otherwise try to compute with unit price in item tuple (id,qty,price?) or 0
   if (typeof o.amount === 'number') return o.amount;
   try{
     return (o.items||[]).reduce(function(sum,p){
-      const q=p[1]||0; const price = (p.length>=3 ? (p[2]||0) : 0);
+      var q=p[1]||0; var price = (p.length>=3 ? (p[2]||0) : 0);
       return sum + q*price;
     }, 0);
   }catch(_){ return 0; }
 }
-
-function isDeliveryOrder(o) {
-  return o.deliveryInfo || o.tableNo === '배달';
-}
-
-// 매장 주문 렌더링
-function appendStoreOrderRow(o){
+function appendOrderRow(o){
   if(!o || !o.id) return;
-  if(SEEN_STORE.has(o.id)) return;
-  SEEN_STORE.add(o.id);
-  
-  const tr = document.createElement('tr');
-  tr.dataset.orderId = o.id;
-  
-  const itemsHtml = summarizeItems(o);
-  const status = o.status || '접수';
-  
-  tr.innerHTML = 
-    '<td>' + orderTime(o) + '</td>' +
-    '<td><strong>' + (o.tableNo || '-') + '</strong></td>' +
-    '<td>' + itemsHtml + '</td>' +
-    '<td><strong>' + computeAmount(o).toLocaleString('ko-KR') + '원</strong></td>' +
-    '<td>' + createStatusSelect(o.id, status, 'store') + '</td>' +
-    '<td><button class="btn danger btn-delete-store" data-id="' + o.id + '">삭제</button></td>';
-  
-  if (storeOrdersTbody.firstChild) {
-    storeOrdersTbody.insertBefore(tr, storeOrdersTbody.firstChild);
-  } else {
-    storeOrdersTbody.appendChild(tr);
-  }
+  if(SEEN.has(o.id)) return;
+  SEEN.add(o.id);
+  var tr = document.createElement('tr');
+  tr.innerHTML = '<td>'+orderTime(o)+'</td>'
+    + '<td>'+(o.tableNo||'')+'</td>'
+    + '<td>'+summarizeItems(o)+'</td>'
+    + '<td>'+ (computeAmount(o)).toLocaleString('ko-KR') +'</td>'
+    + '<td>'+(o.status||'')+'</td>';
+  // newest on top
+  if (ordersTbody.firstChild) ordersTbody.insertBefore(tr, ordersTbody.firstChild);
+  else ordersTbody.appendChild(tr);
 }
 
-// 배달 주문 렌더링
-function appendDeliveryOrderRow(o){
-  if(!o || !o.id) return;
-  if(SEEN_DELIVERY.has(o.id)) return;
-  SEEN_DELIVERY.add(o.id);
-  
-  const tr = document.createElement('tr');
-  tr.dataset.orderId = o.id;
-  
-  const info = o.deliveryInfo || {};
-  const itemsHtml = summarizeItems(o);
-  const status = o.status || '접수';
-  
-  // 고객 정보
-  const customerInfo = [];
-  if (info.name) customerInfo.push('<div><strong>이름:</strong> ' + info.name + '</div>');
-  if (info.phone) customerInfo.push('<div><strong>연락처:</strong> ' + info.phone + '</div>');
-  if (info.addr) customerInfo.push('<div><strong>주소:</strong> ' + info.addr + '</div>');
-  if (info.note) customerInfo.push('<div><strong>요청:</strong> ' + info.note + '</div>');
-  
-  const customerHtml = customerInfo.length 
-    ? '<div class="delivery-info">' + customerInfo.join('') + '</div>'
-    : '';
-  
-  const reserveTime = info.reserveTime || '-';
-  
-  tr.innerHTML = 
-    '<td>' + orderTime(o) + '</td>' +
-    '<td>' + reserveTime + '</td>' +
-    '<td>' + 
-      '<div><strong>주문:</strong> ' + itemsHtml + '</div>' +
-      customerHtml +
-    '</td>' +
-    '<td><strong>' + computeAmount(o).toLocaleString('ko-KR') + '원</strong></td>' +
-    '<td>' + createStatusSelect(o.id, status, 'delivery') + '</td>' +
-    '<td><button class="btn danger btn-delete-delivery" data-id="' + o.id + '">삭제</button></td>';
-  
-  if (deliveryOrdersTbody.firstChild) {
-    deliveryOrdersTbody.insertBefore(tr, deliveryOrdersTbody.firstChild);
-  } else {
-    deliveryOrdersTbody.appendChild(tr);
-  }
-}
-
-// 상태 선택 드롭다운 생성
-function createStatusSelect(orderId, currentStatus, type) {
-  const statuses = type === 'delivery' 
-    ? ['접수', '준비중', '배달중', '완료', '취소']
-    : ['접수', '준비중', '완료', '취소'];
-  
-  const options = statuses.map(s => 
-    `<option value="${s}" ${s === currentStatus ? 'selected' : ''}>${s}</option>`
-  ).join('');
-  
-  return `<select class="status-select ${currentStatus}" data-order-id="${orderId}" data-type="${type}" onchange="updateOrderStatus(this)">${options}</select>`;
-}
-
-// 주문 상태 업데이트
-async function updateOrderStatus(selectEl) {
-  const orderId = selectEl.dataset.orderId;
-  const newStatus = selectEl.value;
-  const type = selectEl.dataset.type;
-  
-  if (!orderId || !newStatus) return;
-  
-  try {
-    const r = await fetch(api('/orders/' + orderId), {
-      method: 'PATCH',
-      headers: authHeaders(),
-      body: JSON.stringify({ status: newStatus })
-    });
-    
-    if (!r.ok) {
-      alert('상태 변경 실패');
-      // 원래 상태로 되돌리기
-      const oldStatus = selectEl.className.split(' ').pop();
-      selectEl.value = oldStatus;
-      return;
-    }
-    
-    // 드롭다운 색상 업데이트
-    selectEl.className = `status-select ${newStatus}`;
-    
-    // 성공 메시지 (선택사항)
-    // console.log('상태 변경됨:', orderId, '→', newStatus);
-    
-  } catch (e) {
-    console.error('Status update error:', e);
-    alert('상태 변경 중 오류가 발생했습니다.');
-  }
-}
-
-// 전역으로 노출
-window.updateOrderStatus = updateOrderStatus;
-
-// 매장 주문 삭제
-storeOrdersTbody.addEventListener('click', async function(e){
-  if (!e.target.classList.contains('btn-delete-store')) return;
-  await deleteOrder(e.target.dataset.id, 'store');
-});
-
-// 배달 주문 삭제
-deliveryOrdersTbody.addEventListener('click', async function(e){
-  if (!e.target.classList.contains('btn-delete-delivery')) return;
-  await deleteOrder(e.target.dataset.id, 'delivery');
-});
-
-async function deleteOrder(orderId, type) {
-  if (!orderId) return;
-  if (!confirm('이 주문을 삭제하시겠습니까?')) return;
-  
-  try {
-    const r = await fetch(api('/orders/' + orderId), {
-      method: 'DELETE',
-      headers: authHeaders()
-    });
-    
-    if (!r.ok) {
-      alert('삭제 실패');
-      return;
-    }
-    
-    // UI에서 제거
-    if (type === 'store') {
-      SEEN_STORE.delete(orderId);
-      const row = storeOrdersTbody.querySelector(`tr[data-order-id="${orderId}"]`);
-      if (row) row.remove();
-    } else {
-      SEEN_DELIVERY.delete(orderId);
-      const row = deliveryOrdersTbody.querySelector(`tr[data-order-id="${orderId}"]`);
-      if (row) row.remove();
-    }
-    
-    updateOrderCounts();
-    alert('주문이 삭제되었습니다.');
-  } catch (e) {
-    console.error('Delete error:', e);
-    alert('삭제 중 오류가 발생했습니다.');
-  }
-}
-
-function updateOrderCounts() {
-  const storeCount = document.getElementById('storeOrderCount');
-  const deliveryCount = document.getElementById('deliveryOrderCount');
-  
-  if (storeCount) {
-    storeCount.textContent = `(${SEEN_STORE.size}건)`;
-  }
-  if (deliveryCount) {
-    deliveryCount.textContent = `(${SEEN_DELIVERY.size}건)`;
-  }
-}
-
+function rowHtml(o){ const items=(o.items||[]).map(([id,q])=>`${id} x ${q}`).join(', '); return `<tr><td>${o.createdAt||''}</td><td>${o.tableNo||''}</td><td>${items}</td><td>${(o.amount||0).toLocaleString('ko-KR')}</td><td>${o.status||''}</td></tr>`; }
 async function loadOrders(){
   try{
     const r = await fetch(api('/orders'), { headers: authHeaders() });
     const arr = await r.json();
-    arr.sort(function(a,b){ return (new Date(b.createdAt||0)) - (new Date(a.createdAt||0)); });
-    
-    arr.forEach(function(order) {
-      if (isDeliveryOrder(order)) {
-        appendDeliveryOrderRow(order);
-      } else {
-        appendStoreOrderRow(order);
-      }
-    });
-    
-    updateOrderCounts();
+    arr.sort(function(a,b){ return (b.createdAt||b.created||0) - (a.createdAt||a.created||0); });
+    arr.forEach(appendOrderRow);
   }catch(e){ console.warn('loadOrders failed', e); }
 }
+(function sse(){ try{ const es=new EventSource(api('/events/orders')); es.addEventListener('order', e=>{ loadOrders(); }); }catch(_){ /* fallback by timer, but silent */ setInterval(loadOrders,15000); } })();
+document.getElementById('exportOrders').onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } window.location.href = api('/export/orders.xlsx')+'?token='+TOKEN; };
 
-(function sse(){ 
-  try{ 
-    const es=new EventSource(api('/events/orders')); 
-    es.addEventListener('order', e=>{ loadOrders(); }); 
-  }catch(_){ 
-    setInterval(loadOrders,15000); 
-  } 
-})();</script>
-
-<script>(function(){if(window.__NT_CTRL_221B)return;window.__NT_CTRL_221B=true;
-const NT={ctx:null,enabled:false,lastKeys:[],maxKeys:20}; const SKEY='__qr_user_beep_enabled_v2';
-function log(s){try{const el=document.getElementById('ntLog'); if(el){el.textContent=(el.textContent?el.textContent+'\n':'')+s;}}catch(_){}} 
-function setConn(state){const el=document.getElementById('ntConn'); if(!el)return; if(state==='ok'){el.textContent='연결됨'; el.className='pill ok';} else if(state==='down'){el.textContent='끊김'; el.className='pill bad';} else {el.textContent='확인 중…'; el.className='pill';}}
-function setPerm(){const p=(window.Notification&&Notification.permission)||'unsupported'; const el=document.getElementById('ntPerm'); if(!el)return; el.textContent=p; el.className='pill '+(p==='granted'?'ok':(p==='denied'?'bad':'')); try{syncPermBtn();}catch(_){}} 
-function syncPermBtn(){ try{const btn=document.getElementById('ntAskPerm'); if(!btn) return; const perm=(window.Notification&&Notification.permission)||'unsupported'; if(perm==='granted'){ btn.textContent='이미 허용됨'; btn.disabled=true; } else if(perm==='denied'){ btn.textContent='브라우저 설정에서 허용'; btn.disabled=false; } else { btn.textContent='브라우저 알림 허용 요청'; btn.disabled=false; }}catch(_){} }
-function ensureCtx(){ if(NT.ctx) return NT.ctx; const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; NT.ctx=new AC(); return NT.ctx;}
-function enableBeep(){NT.enabled=true; localStorage.setItem(SKEY,'1'); try{const c=ensureCtx(); if(c&&c.state==='suspended'){c.resume();}}catch(_){}} 
-function beep(){ try{ if(!NT.enabled) return; const c=ensureCtx(); if(!c) return; const o=c.createOscillator(); const g=c.createGain(); o.type='sine'; o.frequency.value=880; g.gain.value=0.1; o.connect(g); g.connect(c.destination); o.start(); setTimeout(()=>{o.stop(); o.disconnect(); g.disconnect();}, 180); }catch(_){ } }
-function notifyBrowser(title, body){ try{ if(!('Notification' in window)) return; if(Notification.permission==='granted'){ new Notification(title, { body: body }); } }catch(_){ } }
-function dedup(key){ NT.lastKeys.push({key,ts:Date.now()}); if(NT.lastKeys.length>NT.maxKeys) NT.lastKeys.shift(); const recent=NT.lastKeys.filter(x=>Date.now()-x.ts<5000).map(x=>x.key); return recent.filter(k=>k===key).length<=1; }
-function attachButtons(){ 
-  const btnE=document.getElementById('ntEnableSound'); 
-  if(btnE){ btnE.onclick=function(){ enableBeep(); beep(); log('소리 활성화됨'); }; } 
-  const btnT=document.getElementById('ntTestSound'); 
-  if(btnT){ btnT.onclick=function(){ enableBeep(); beep(); log('소리 테스트'); }; } 
-  const btnP=document.getElementById('ntAskPerm'); 
-  if(btnP){ btnP.onclick=function(){ 
-    try{ 
-      const perm=(window.Notification&&Notification.permission)||'unsupported'; 
-      if(perm==='granted'){ setPerm(); syncPermBtn(); log('브라우저 알림: 이미 허용됨'); return;} 
-      if(perm==='denied'){ setPerm(); syncPermBtn(); log('브라우저 알림: 차단됨 (브라우저 설정에서 변경 필요)'); return;} 
-      Notification.requestPermission().then(p=>{ setPerm(); syncPermBtn(); if(p==='granted'){ notifyBrowser('알림 켜짐','이제 직원 호출 알림을 받습니다.'); } }); 
-    }catch(_){ setPerm(); syncPermBtn(); } 
-  }; } 
-  const btnB=document.getElementById('ntTestBrowser'); 
-  if(btnB){ btnB.onclick=function(){ notifyBrowser('테스트 알림','브라우저 알림이 동작 중입니다.'); beep(); }; } 
-}
-function parsePayload(data){ try{ return JSON.parse(data); }catch(_){ return { message: data }; } }
-function handleOrder(payload){ try{ if(payload && payload.order) appendOrderRow(payload.order); }catch(_){ } }
-function handleCall(payload){ 
-  const table = payload.table || payload.tableNo || payload.t || ''; 
-  const key = 'call:'+String(table||'')+':'+(payload.at||payload.id||payload.ts||''); 
-  if(!dedup(key)) return; 
-  beep(); 
-  notifyBrowser('직원 호출', (table?('테이블 '+table+'에서 호출'): '직원 호출') ); 
-  try{ log('[직원 호출] '+ (table?('테이블 '+table):'')); }catch(_){ } 
-}
-function wireSSE(){ 
-  if(!window.EventSource){ setConn('down'); return;} 
-  setConn('checking'); 
-  const base=(window.API||''); 
-  const endpoints=['/events/orders','/events','/sse']; 
-  let connected=false,tried=0; 
-  function tryNext(){ 
-    if(connected||tried>=endpoints.length){ if(!connected) setConn('down'); return;} 
-    const ep=endpoints[tried++]; 
-    try{ 
-      const es=new EventSource(base+ep); 
-      es.addEventListener('open',()=>{ connected=true; setConn('ok'); log('SSE 연결: '+ep); }); 
-      es.addEventListener('error',()=>{ if(!connected){ log('SSE 실패: '+ep); es.close(); tryNext(); } }); 
-      ['staff','staff_call','assist','call','notify','message','order'].forEach(function(ev){ 
-        es.addEventListener(ev,function(e){ 
-          const p=parsePayload(e.data||''); 
-          if(p && (String(p.type||'').toLowerCase().includes('staff') || ev==='staff' || ev==='staff_call' || ev==='assist' || ev==='call')) handleCall(p); 
-        }); 
-      }); 
-      es.onmessage=function(e){ 
-        const p=parsePayload(e.data||''); 
-        if(p && (p.type==='staff_call'||p.kind==='staff_call'||p.event==='staff_call')) handleCall(p); 
-      }; 
-    }catch(_){ tryNext(); } 
-  } 
-  tryNext(); 
-}
-document.addEventListener('DOMContentLoaded', function(){ 
-  try{ NT.enabled = localStorage.getItem(SKEY)==='1'; }catch(_){ } 
-  setPerm(); 
-  syncPermBtn(); 
-  attachButtons(); 
-  wireSSE(); 
-});
-})();</script>
-
-</body></html>
-
-// 엑셀 다운로드
-document.getElementById('exportStoreOrders').onclick = ()=>{ 
-  if(!TOKEN){ location.href='/login'; return; } 
-  window.location.href = api('/export/orders.xlsx?type=store')+'&token='+TOKEN; 
-};
-
-document.getElementById('exportDeliveryOrders').onclick = ()=>{ 
-  if(!TOKEN){ location.href='/login'; return; } 
-  window.location.href = api('/export/orders.xlsx?type=delivery')+'&token='+TOKEN; 
-};
-
-// ===== QR 생성 =====
+// QR (ORDER_BASE/?table=)
 document.getElementById('makeQR').onclick = ()=>{
   if(!TOKEN){ location.href='/login'; return; }
   const t=document.getElementById('qrTable').value||'';
   const link = ORDER_BASE + '/?table=' + encodeURIComponent(t);
   const apiQR = api('/qr?size=220x220&data='+encodeURIComponent(link));
-  document.getElementById('qrImg').src = apiQR; 
-  document.getElementById('dlPng').href = apiQR;
+  document.getElementById('qrImg').src = apiQR; document.getElementById('dlPng').href = apiQR;
 };
 
-// ===== 메뉴 관리 =====
+// Menu (edit/save/delete/add)
 const menuTbody = document.querySelector('#menuTbl tbody');
-async function loadMenu(){ 
-  const r=await fetch(api('/menu')); 
-  if(!r.ok) return; 
-  const arr=await r.json(); 
-  menuTbody.innerHTML = arr.map(trHtml).join(''); 
-}
-
+async function loadMenu(){ const r=await fetch(api('/menu')); if(!r.ok) return; const arr=await r.json(); menuTbody.innerHTML = arr.map(trHtml).join(''); }
 function trHtml(m){
   return `<tr data-id="${m.id}">
     <td>${m.id}</td>
@@ -553,119 +202,66 @@ function trHtml(m){
     <td><input type="checkbox" class="m_active" ${m.active?'checked':''}></td>
     <td>
       <button class="btn m_save">저장</button>
-      <button class="btn danger m_del">삭제</button>
+      <button class="btn m_del">삭제</button>
     </td>
   </tr>`;
 }
-
 menuTbody.addEventListener('click', async (e)=>{
-  const tr = e.target.closest('tr'); 
-  if(!tr) return;
+  const tr = e.target.closest('tr'); if(!tr) return;
   const id = tr.getAttribute('data-id');
-  
   if(e.target.classList.contains('m_save')){
     if(!TOKEN){ location.href='/login'; return; }
     const name = tr.querySelector('.m_name').value.trim();
     const price = Number(tr.querySelector('.m_price').value||0);
     const active = tr.querySelector('.m_active').checked;
-    const r = await fetch(api('/menu/'+encodeURIComponent(id)), { 
-      method:'PATCH', 
-      headers: authHeaders(), 
-      body: JSON.stringify({ name, price, active }) 
-    });
+    const r = await fetch(api('/menu/'+encodeURIComponent(id)), { method:'PATCH', headers: authHeaders(), body: JSON.stringify({ name, price, active }) });
     if(!r.ok){ alert('저장 실패'); return; }
-    alert('저장되었습니다.');
   }
-  
   if(e.target.classList.contains('m_del')){
     if(!TOKEN){ location.href='/login'; return; }
     if(!confirm('삭제할까요?')) return;
-    const r = await fetch(api('/menu/'+encodeURIComponent(id)), { 
-      method:'DELETE', 
-      headers: authHeaders() 
-    });
+    const r = await fetch(api('/menu/'+encodeURIComponent(id)), { method:'DELETE', headers: authHeaders() });
     if(!r.ok){ alert('삭제 실패'); return; }
     await loadMenu();
   }
 });
-
 document.getElementById('m_add').onclick = async ()=>{
   if(!TOKEN){ location.href='/login'; return; }
   const id=m_id.value.trim(), name=m_name.value.trim(), price=Number(m_price.value||0);
   if(!id || !name || !price){ alert('id, 이름, 가격을 입력해 주세요'); return; }
-  const r=await fetch(api('/menu'), { 
-    method:'POST', 
-    headers: authHeaders(), 
-    body: JSON.stringify({ id,name,price,active:true }) 
-  });
+  const r=await fetch(api('/menu'), { method:'POST', headers: authHeaders(), body: JSON.stringify({ id,name,price,active:true }) });
   if(!r.ok){ const t=await r.text(); alert('추가 실패: '+t); return; }
-  m_id.value=''; m_name.value=''; m_price.value=''; 
-  await loadMenu();
+  m_id.value=''; m_name.value=''; m_price.value=''; await loadMenu();
 };
 
+// Excel upload
 document.getElementById('m_upload').onclick = async ()=>{
   if(!TOKEN){ location.href='/login'; return; }
-  const f=document.getElementById('xlsxFile').files[0]; 
-  if(!f){ alert('파일 선택'); return; }
-  const fd=new FormData(); 
-  fd.append('file', f);
-  const r=await fetch(api('/import/menu'), { 
-    method:'POST', 
-    headers:{ 'Authorization': 'Bearer '+TOKEN }, 
-    body: fd 
-  });
+  const f=document.getElementById('xlsxFile').files[0]; if(!f){ alert('파일 선택'); return; }
+  const fd=new FormData(); fd.append('file', f);
+  const r=await fetch(api('/import/menu'), { method:'POST', headers:{ 'Authorization': 'Bearer '+TOKEN }, body: fd });
   if(!r.ok){ alert('업로드 실패'); return; }
   await loadMenu();
 };
 
-// ===== 일일 코드 =====
-function untilMidnightText(){ 
-  const now=new Date(); 
-  const end=new Date(now); 
-  end.setHours(24,0,0,0); 
-  const ms=end-now; 
-  const h=Math.floor(ms/3600000); 
-  const m=Math.floor((ms%3600000)/60000); 
-  return `자정까지 ${h}시간 ${m}분`; 
-}
-
-function updateRemain(){ 
-  const el=document.getElementById('dcRemain'); 
-  if(el) el.textContent = untilMidnightText(); 
-}
-
+// Daily Code (silent errors)
+function untilMidnightText(){ const now=new Date(); const end=new Date(now); end.setHours(24,0,0,0); const ms=end-now; const h=Math.floor(ms/3600000); const m=Math.floor((ms%3600000)/60000); return `자정까지 ${h}시간 ${m}분`; }
+function updateRemain(){ const el=document.getElementById('dcRemain'); if(el) el.textContent = untilMidnightText(); }
 setInterval(updateRemain, 60000);
-
 async function loadDailyCode(){
   if(!TOKEN) return;
   try{
     const r=await fetch(api('/daily-code'), { headers: authHeaders() });
-    if(!r.ok) return;
+    if(!r.ok) return; // silent
     const j=await r.json();
-    dcDate.textContent='('+j.date+')'; 
-    dcCode.value=j.code;
-    dcStatus.textContent=j.override?'오버라이드(오늘만)':'기본 코드'; 
-    dcStatus.className='pill '+(j.override?'warn':'ok');
+    dcDate.textContent='('+j.date+')'; dcCode.value=j.code;
+    dcStatus.textContent=j.override?'오버라이드(오늘만)':'기본 코드'; dcStatus.className='pill '+(j.override?'warn':'ok');
     updateRemain();
-  }catch(e){}
+  }catch(e){ /* silent */ }
 }
-
-regenBtn.onclick = async ()=>{ 
-  if(!TOKEN){ location.href='/login'; return; } 
-  const r=await fetch(api('/daily-code/regen'), { method:'POST', headers: authHeaders() }); 
-  if(r.ok){ await loadDailyCode(); alert('오늘의 새 코드가 발급되었습니다.'); } 
-};
-
-clearBtn.onclick = async ()=>{ 
-  if(!TOKEN){ location.href='/login'; return; } 
-  const r=await fetch(api('/daily-code/clear'), { method:'POST', headers: authHeaders() }); 
-  if(r.ok){ await loadDailyCode(); alert('기본 코드로 되돌렸습니다.'); } 
-};
-
-copyBtn.onclick = ()=>{ 
-  if(!TOKEN){ location.href='/login'; return; } 
-  navigator.clipboard?.writeText(dcCode.value).then(()=> alert('복사되었습니다.')); 
-};
+regenBtn.onclick = async ()=>{ if(!TOKEN){ location.href='/login'; return; } const r=await fetch(api('/daily-code/regen'), { method:'POST', headers: authHeaders() }); if(r.ok){ await loadDailyCode(); alert('오늘의 새 코드가 발급되었습니다.'); } };
+clearBtn.onclick = async ()=>{ if(!TOKEN){ location.href='/login'; return; } const r=await fetch(api('/daily-code/clear'), { method:'POST', headers: authHeaders() }); if(r.ok){ await loadDailyCode(); alert('기본 코드로 되돌렸습니다.'); } };
+copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.clipboard?.writeText(dcCode.value).then(()=> alert('복사되었습니다.')); };
 
 init();
 </script>
@@ -674,6 +270,7 @@ init();
 var HAS_TOKEN=false; try{ HAS_TOKEN=!!(window.localStorage&&localStorage.getItem('adminToken')); }catch(_){}
 function $(s,r){return (r||document).querySelector(s);} function $all(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));}
 function textOf(e){return (e&&(e.textContent||e.innerText||e.value||'')).trim();}
+function visible(e){return e && e.offsetParent!==null && !e.disabled;}
 function now(){return (new Date()).getTime();} function ymd(ts){var d=ts?new Date(ts):new Date(); var y=d.getFullYear();var m=('0'+(d.getMonth()+1)).slice(-2);var a=('0'+d.getDate()).slice(-2);return y+'-'+m+'-'+a;}
 function card(){return document.getElementById('pane-qr')||document.body;} function tableInput(c){return $('#qrTable',c)||$('input[type=\"text\"]',c)||$('input',c);} function getTable(c){var i=tableInput(c);return (i&&i.value||'').trim();}
 function currentImgUrl(c){var im=$('#qrImg',c); if(im&&im.src) return im.src; var dl=$('#dlPng',c); if(dl&&dl.href) return dl.href; return '';}
@@ -689,6 +286,7 @@ function ensureUI(c){
   }
   try{
     if(gen && gen.parentNode){
+      // remove duplicate existing save buttons in the pane except our node
       var dups = Array.prototype.slice.call(c.querySelectorAll('#btnQrSaveTop'));
       for (var i2=0;i2<dups.length;i2++){ if(dups[i2]!==save){ dups[i2].remove(); } }
       gen.insertAdjacentElement('afterend', save);
@@ -702,122 +300,31 @@ function ensureUI(c){
   if(!HAS_TOKEN){ save.style.display='none'; title.style.display='none'; grid.style.display='none'; } else { save.style.display=''; title.style.display=''; grid.style.display=''; }
   return {gen:gen, save:save, grid:grid};
 }
-function getList(){ if(!HAS_TOKEN) return []; try{ return JSON.parse(localStorage.getItem('__qr_saved_list')||'[]'); }catch(_){ return []; } } 
-function setList(l){ if(!HAS_TOKEN) return; localStorage.setItem('__qr_saved_list', JSON.stringify(l)); }
-function render(grid){ 
-  if(!HAS_TOKEN){ grid.innerHTML=''; return; } 
-  var list=getList(); 
-  if(!list.length){ 
-    grid.innerHTML='<div style=\"opacity:.7\">저장된 QR이 없습니다. QR 생성 후 [QR 저장]을 눌러 추가하세요.</div>'; 
-    return; 
-  } 
-  grid.innerHTML=''; 
-  list.forEach(function(it,idx){ 
-    var cd=document.createElement('div'); 
-    cd.className='qr-card'; 
-    var img=document.createElement('img'); 
-    img.src=it.dataUrl||it.url||''; 
-    img.alt='QR '+(it.table||''); 
-    var meta=document.createElement('div'); 
-    meta.className='qr-meta'; 
-    meta.textContent='테이블 '+(it.table||''); 
-    var acts=document.createElement('div'); 
-    acts.className='qr-actions'; 
-    var dl=document.createElement('button'); 
-    dl.className='btn'; 
-    dl.textContent='다운로드'; 
-    dl.onclick=function(){ 
-      try{ 
-        fetch(img.src).then(r=>r.blob()).then(b=>{ 
-          var o=URL.createObjectURL(b); 
-          var name='qr'+(it.table?('_'+it.table):'')+'_'+ymd(it.ts||now())+'.png'; 
-          var a=document.createElement('a'); 
-          a.href=o; 
-          a.download=name; 
-          document.body.appendChild(a); 
-          a.click(); 
-          a.remove(); 
-          setTimeout(function(){URL.revokeObjectURL(o)},4000); 
-        }).catch(function(){ 
-          var a2=document.createElement('a'); 
-          a2.href=img.src; 
-          a2.target='_blank'; 
-          a2.rel='noopener'; 
-          a2.click(); 
-        }); 
-      }catch(_){} 
-    }; 
-    var rm=document.createElement('button'); 
-    rm.className='btn'; 
-    rm.textContent='삭제'; 
-    rm.onclick=function(){ 
-      var l=getList().filter(function(_,j){return j!==idx;}); 
-      setList(l); 
-      render(grid); 
-    }; 
-    acts.appendChild(dl); 
-    acts.appendChild(rm); 
-    cd.appendChild(img); 
-    cd.appendChild(meta); 
-    cd.appendChild(acts); 
-    grid.appendChild(cd); 
-  }); 
-}
-function wireDownload(c){ 
-  function saveFromSrc(ev){ 
-    if(ev){ev.preventDefault();ev.stopPropagation();} 
-    var src=currentImgUrl(c); 
-    if(!src) return; 
-    var t=(getTable(c)||'').trim(); 
-    var name='qr'+(t?('_'+t):'')+'_'+ymd(now())+'.png'; 
-    fetch(src).then(r=>r.blob()).then(b=>{ 
-      var o=URL.createObjectURL(b); 
-      var a=document.createElement('a'); 
-      a.href=o; 
-      a.download=name; 
-      document.body.appendChild(a); 
-      a.click(); 
-      a.remove(); 
-      setTimeout(function(){URL.revokeObjectURL(o)},4000); 
-    }).catch(function(){ 
-      var a2=document.createElement('a'); 
-      a2.href=src; 
-      a2.target='_blank'; 
-      a2.rel='noopener'; 
-      a2.click(); 
-    }); 
-  } 
-  var dl=$('#dlPng',c); 
-  if(dl){ dl.addEventListener('click', saveFromSrc, true);} 
-  var im=$('#qrImg',c); 
-  if(im){ 
-    im.style.cursor='pointer'; 
-    im.title='클릭하면 PNG로 다운로드'; 
-    im.addEventListener('click', saveFromSrc, true);
-  } 
-}
-function hookSave(c,ui){ 
-  if(!ui.save) return; 
-  ui.save.onclick=function(){ 
-    if(!HAS_TOKEN){ alert('로그인 후 이용해 주세요.'); return;} 
-    var t=getTable(c) || prompt('테이블 번호를 입력하세요') || ''; 
-    if(!t) return; 
-    var src=currentImgUrl(c); 
-    if(!src){ alert('먼저 QR을 생성하세요.'); return; } 
-    var l=getList(); 
-    var idx=l.findIndex(function(it){return String(it.table||'')===String(t);}); 
-    var item={table:String(t), url:src, ts: now()}; 
-    if(idx>=0) l[idx]=item; 
-    else l.push(item); 
-    setList(l); 
-    render(ui.grid); 
-  }; 
-}
-document.addEventListener('DOMContentLoaded', function(){ 
-  var c=card(); 
-  var ui=ensureUI(c); 
-  render(ui.grid); 
-  wireDownload(c); 
-  hookSave(c,ui); 
-});
-})();
+function getList(){ if(!HAS_TOKEN) return []; try{ return JSON.parse(localStorage.getItem('__qr_saved_list')||'[]'); }catch(_){ return []; } } function setList(l){ if(!HAS_TOKEN) return; localStorage.setItem('__qr_saved_list', JSON.stringify(l)); }
+function render(grid){ if(!HAS_TOKEN){ grid.innerHTML=''; return; } var list=getList(); if(!list.length){ grid.innerHTML='<div style=\"opacity:.7\">저장된 QR이 없습니다. QR 생성 후 [QR 저장]을 눌러 추가하세요.</div>'; try{console.debug('[QR] saved list empty');}catch(_){ } return; } grid.innerHTML=''; list.forEach(function(it,idx){ var cd=document.createElement('div'); cd.className='qr-card'; var img=document.createElement('img'); img.src=it.dataUrl||it.url||''; img.alt='QR '+(it.table||''); var meta=document.createElement('div'); meta.className='qr-meta'; meta.textContent='테이블 '+(it.table||''); var acts=document.createElement('div'); acts.className='qr-actions'; var dl=document.createElement('button'); dl.className='btn'; dl.textContent='다운로드'; dl.onclick=function(){ try{ fetch(img.src).then(r=>r.blob()).then(b=>{ var o=URL.createObjectURL(b); var name='qr'+(it.table?('_'+it.table):'')+'_'+ymd(it.ts||now())+'.png'; var a=document.createElement('a'); a.href=o; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(o)},4000); }).catch(function(){ var a2=document.createElement('a'); a2.href=img.src; a2.target='_blank'; a2.rel='noopener'; a2.click(); }); }catch(_){} }; var rm=document.createElement('button'); rm.className='btn'; rm.textContent='삭제'; rm.onclick=function(){ var l=getList().filter(function(_,j){return j!==idx;}); setList(l); render(grid); }; acts.appendChild(dl); acts.appendChild(rm); cd.appendChild(img); cd.appendChild(meta); cd.appendChild(acts); grid.appendChild(cd); }); }
+function wireDownload(c){ function saveFromSrc(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} var src=currentImgUrl(c); if(!src) return; var t=(getTable(c)||'').trim(); var name='qr'+(t?('_'+t):'')+'_'+ymd(now())+'.png'; fetch(src).then(r=>r.blob()).then(b=>{ var o=URL.createObjectURL(b); var a=document.createElement('a'); a.href=o; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(o)},4000); }).catch(function(){ var a2=document.createElement('a'); a2.href=src; a2.target='_blank'; a2.rel='noopener'; a2.click(); }); } var dl=$('#dlPng',c); if(dl){ dl.addEventListener('click', saveFromSrc, true);} var im=$('#qrImg',c); if(im){ im.style.cursor='pointer'; im.title='클릭하면 PNG로 다운로드'; im.addEventListener('click', saveFromSrc, true);} }
+function hookSave(c,ui){ if(!ui.save) return; ui.save.onclick=function(){ if(!HAS_TOKEN){ alert('로그인 후 이용해 주세요.'); return;} var t=getTable(c) || prompt('테이블 번호를 입력하세요') || ''; if(!t) return; var src=currentImgUrl(c); if(!src){ alert('먼저 QR을 생성하세요.'); return; } var l=getList(); var idx=l.findIndex(function(it){return String(it.table||'')===String(t);}); var item={table:String(t), url:src, ts: now()}; if(idx>=0) l[idx]=item; else l.push(item); setList(l); render(ui.grid); }; }
+document.addEventListener('DOMContentLoaded', function(){ var c=card(); var ui=ensureUI(c); render(ui.grid); wireDownload(c); hookSave(c,ui); });
+})();</script>
+
+
+<script>(function(){if(window.__NT_CTRL_221B)return;window.__NT_CTRL_221B=true;
+const NT={ctx:null,enabled:false,lastKeys:[],maxKeys:20}; const SKEY='__qr_user_beep_enabled_v2';
+function log(s){try{const el=document.getElementById('ntLog'); if(el){el.textContent=(el.textContent?el.textContent+'\\n':'')+s;}}catch(_){}} 
+function setConn(state){const el=document.getElementById('ntConn'); if(!el)return; if(state==='ok'){el.textContent='연결됨'; el.className='pill ok';} else if(state==='down'){el.textContent='끊김'; el.className='pill bad';} else {el.textContent='확인 중…'; el.className='pill';}}
+function setPerm(){const p=(window.Notification&&Notification.permission)||'unsupported'; const el=document.getElementById('ntPerm'); if(!el)return; el.textContent=p; el.className='pill '+(p==='granted'?'ok':(p==='denied'?'bad':'')); try{syncPermBtn();}catch(_){}} 
+function syncPermBtn(){ try{const btn=document.getElementById('ntAskPerm'); if(!btn) return; const perm=(window.Notification&&Notification.permission)||'unsupported'; if(perm==='granted'){ btn.textContent='이미 허용됨'; btn.disabled=true; } else if(perm==='denied'){ btn.textContent='브라우저 설정에서 허용'; btn.disabled=false; } else { btn.textContent='브라우저 알림 허용 요청'; btn.disabled=false; }}catch(_){} }
+function ensureCtx(){ if(NT.ctx) return NT.ctx; const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; NT.ctx=new AC(); return NT.ctx;}
+function enableBeep(){NT.enabled=true; localStorage.setItem(SKEY,'1'); try{const c=ensureCtx(); if(c&&c.state==='suspended'){c.resume();}}catch(_){}} 
+function beep(){ try{ if(!NT.enabled) return; const c=ensureCtx(); if(!c) return; const o=c.createOscillator(); const g=c.createGain(); o.type='sine'; o.frequency.value=880; g.gain.value=0.1; o.connect(g); g.connect(c.destination); o.start(); setTimeout(()=>{o.stop(); o.disconnect(); g.disconnect();}, 180); }catch(_){ } }
+function notifyBrowser(title, body){ try{ if(!('Notification' in window)) return; if(Notification.permission==='granted'){ new Notification(title, { body: body }); } }catch(_){ } }
+function dedup(key){ NT.lastKeys.push({key,ts:Date.now()}); if(NT.lastKeys.length>NT.maxKeys) NT.lastKeys.shift(); const recent=NT.lastKeys.filter(x=>Date.now()-x.ts<5000).map(x=>x.key); return recent.filter(k=>k===key).length<=1; }
+function attachButtons(){ const btnE=document.getElementById('ntEnableSound'); if(btnE){ btnE.onclick=function(){ enableBeep(); beep(); log('소리 활성화됨'); }; } const btnT=document.getElementById('ntTestSound'); if(btnT){ btnT.onclick=function(){ enableBeep(); beep(); log('소리 테스트'); }; } const btnP=document.getElementById('ntAskPerm'); if(btnP){ btnP.onclick=function(){ try{ const perm=(window.Notification&&Notification.permission)||'unsupported'; if(perm==='granted'){ setPerm(); syncPermBtn(); log('브라우저 알림: 이미 허용됨'); return;} if(perm==='denied'){ setPerm(); syncPermBtn(); log('브라우저 알림: 차단됨 (브라우저 설정에서 변경 필요)'); return;} Notification.requestPermission().then(p=>{ setPerm(); syncPermBtn(); if(p==='granted'){ notifyBrowser('알림 켜짐','이제 직원 호출 알림을 받습니다.'); } }); }catch(_){ setPerm(); syncPermBtn(); } }; } const btnB=document.getElementById('ntTestBrowser'); if(btnB){ btnB.onclick=function(){ notifyBrowser('테스트 알림','브라우저 알림이 동작 중입니다.'); beep(); }; } }
+function parsePayload(data){ try{ return JSON.parse(data); }catch(_){ return { message: data }; } }
+function handleOrder(payload){ try{ if(payload && payload.order) appendOrderRow(payload.order); }catch(_){ } }
+function handleCall(payload){ const table = payload.table || payload.tableNo || payload.t || ''; const key = 'call:'+String(table||'')+':'+(payload.at||payload.id||payload.ts||''); if(!dedup(key)) return; beep(); notifyBrowser('직원 호출', (table?('테이블 '+table+'에서 호출'): '직원 호출') ); try{ log('[직원 호출] '+ (table?('테이블 '+table):'')); }catch(_){ } }
+function wireSSE(){ if(!window.EventSource){ setConn('down'); return;} setConn('checking'); const base=(window.API||''); const endpoints=['/events/orders','/events','/sse']; let connected=false,tried=0; function tryNext(){ if(connected||tried>=endpoints.length){ if(!connected) setConn('down'); return;} const ep=endpoints[tried++]; try{ const es=new EventSource(base+ep); es.addEventListener('open',()=>{ connected=true; setConn('ok'); log('SSE 연결: '+ep); }); es.addEventListener('error',()=>{ if(!connected){ log('SSE 실패: '+ep); es.close(); tryNext(); } }); ['staff','staff_call','assist','call','notify','message','order'].forEach(function(ev){ es.addEventListener(ev,function(e){ const p=parsePayload(e.data||''); if(p && (String(p.type||'').toLowerCase().includes('staff') || ev==='staff' || ev==='staff_call' || ev==='assist' || ev==='call')) handleCall(p); }); }); es.onmessage=function(e){ const p=parsePayload(e.data||''); if(p && (p.type==='staff_call'||p.kind==='staff_call'||p.event==='staff_call')) handleCall(p); }; }catch(_){ tryNext(); } } tryNext(); }
+document.addEventListener('DOMContentLoaded', function(){ try{ NT.enabled = localStorage.getItem(SKEY)==='1'; }catch(_){ } setPerm(); syncPermBtn(); attachButtons(); wireSSE(); });
+})();</script>
+
+</body></html>
