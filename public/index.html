@@ -38,6 +38,7 @@
   </div>
 
   <div class="tabs">
+    <div class="tab" data-tab="delivery">배달주문</div>
     <div class="tab active" data-tab="orders">주문목록</div>
     <div class="tab" data-tab="qr">QR 배포</div>
     <div class="tab" data-tab="menu">메뉴 관리</div>
@@ -82,7 +83,27 @@
     </div>
   </div>
 
-  <div id="pane-notify" class="card hidden">
+  
+  <div id="pane-delivery" class="card hidden">
+    <div class="row">
+      <button class="btn" id="d_refresh">새로고침</button>
+      <select id="d_filter">
+        <option value="">전체</option>
+        <option value="신규">신규</option>
+        <option value="확인중">확인중</option>
+        <option value="배달중">배달중</option>
+        <option value="완료">완료</option>
+        <option value="취소">취소</option>
+      </select>
+      <span class="pill">임시 저장소(서버 메모리)</span>
+    </div>
+    <table id="deliveryTbl">
+      <thead><tr><th>시간</th><th>이름</th><th>연락처</th><th>주소</th><th>금액</th><th>상태</th><th>메모</th><th>작업</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+<div id="pane-notify" class="card hidden">
     <div class="row" style="justify-content:space-between;align-items:center">
       <b>알림 설정/점검</b>
       <span class="pill" id="ntConn">확인 중…</span>
@@ -264,6 +285,64 @@ clearBtn.onclick = async ()=>{ if(!TOKEN){ location.href='/login'; return; } con
 copyBtn.onclick = ()=>{ if(!TOKEN){ location.href='/login'; return; } navigator.clipboard?.writeText(dcCode.value).then(()=> alert('복사되었습니다.')); };
 
 init();
+
+// === 배달주문 탭 ===
+async function fetchDeliveryOrders(){
+  const res = await fetch(api('/delivery-orders'), { headers: authHeaders() });
+  if(!res.ok){ const t = await res.text(); throw new Error(t); }
+  const data = await res.json();
+  return Array.isArray(data)? data : [];
+}
+function renderDelivery(orders){
+  const tbody = document.querySelector('#deliveryTbl tbody');
+  tbody.innerHTML = '';
+  const filt = document.getElementById('d_filter').value;
+  for(const o of orders){
+    if(filt && o.status !== filt) continue;
+    const tr = document.createElement('tr');
+    const addr = (o.customer?.address||'') + ' ' + (o.customer?.addressDetail||'');
+    tr.innerHTML = `<td>${new Date(o.createdAt).toLocaleString()}</td>
+      <td>${o.customer?.name||''}</td>
+      <td>${o.customer?.phone||''}</td>
+      <td style="max-width:280px;word-break:break-all">${addr}</td>
+      <td>${(o.amount||0).toLocaleString()}</td>
+      <td><select data-id="${o.id}" class="d_status">
+            ${['신규','확인중','배달중','완료','취소'].map(s=>`<option ${o.status===s?'selected':''} value="${s}">${s}</option>`).join('')}
+          </select></td>
+      <td>${o.customer?.requestMemo||''}</td>
+      <td><button class="btn btn-outline" data-del="${o.id}">삭제</button></td>`;
+    tbody.appendChild(tr);
+  }
+}
+async function loadDelivery(){
+  try{
+    const orders = await fetchDeliveryOrders();
+    renderDelivery(orders);
+  }catch(e){ alert('배달주문 로드 실패: '+e.message); }
+}
+document.getElementById('d_refresh').onclick = loadDelivery;
+document.getElementById('d_filter').onchange = loadDelivery;
+
+// delegate updates
+document.addEventListener('change', async (e)=>{
+  const sel = e.target.closest('select.d_status');
+  if(sel){
+    const id = sel.getAttribute('data-id');
+    const body = JSON.stringify({ status: sel.value });
+    await fetch(api('/delivery-orders/'+id), { method:'PATCH', headers: authHeaders(), body });
+  }
+});
+document.addEventListener('click', async (e)=>{
+  const btn = e.target.closest('button[data-del]');
+  if(btn){
+    const id = btn.getAttribute('data-del');
+    if(confirm('삭제하시겠습니까?')){
+      await fetch(api('/delivery-orders/'+id), { method:'DELETE', headers: authHeaders() });
+      loadDelivery();
+    }
+  }
+});
+
 </script>
 
 <script>(function(){if(window.__QR_CTRL_513N2B)return;window.__QR_CTRL_513N2B=true;
@@ -305,7 +384,65 @@ function render(grid){ if(!HAS_TOKEN){ grid.innerHTML=''; return; } var list=get
 function wireDownload(c){ function saveFromSrc(ev){ if(ev){ev.preventDefault();ev.stopPropagation();} var src=currentImgUrl(c); if(!src) return; var t=(getTable(c)||'').trim(); var name='qr'+(t?('_'+t):'')+'_'+ymd(now())+'.png'; fetch(src).then(r=>r.blob()).then(b=>{ var o=URL.createObjectURL(b); var a=document.createElement('a'); a.href=o; a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(o)},4000); }).catch(function(){ var a2=document.createElement('a'); a2.href=src; a2.target='_blank'; a2.rel='noopener'; a2.click(); }); } var dl=$('#dlPng',c); if(dl){ dl.addEventListener('click', saveFromSrc, true);} var im=$('#qrImg',c); if(im){ im.style.cursor='pointer'; im.title='클릭하면 PNG로 다운로드'; im.addEventListener('click', saveFromSrc, true);} }
 function hookSave(c,ui){ if(!ui.save) return; ui.save.onclick=function(){ if(!HAS_TOKEN){ alert('로그인 후 이용해 주세요.'); return;} var t=getTable(c) || prompt('테이블 번호를 입력하세요') || ''; if(!t) return; var src=currentImgUrl(c); if(!src){ alert('먼저 QR을 생성하세요.'); return; } var l=getList(); var idx=l.findIndex(function(it){return String(it.table||'')===String(t);}); var item={table:String(t), url:src, ts: now()}; if(idx>=0) l[idx]=item; else l.push(item); setList(l); render(ui.grid); }; }
 document.addEventListener('DOMContentLoaded', function(){ var c=card(); var ui=ensureUI(c); render(ui.grid); wireDownload(c); hookSave(c,ui); });
-})();</script>
+})();
+// === 배달주문 탭 ===
+async function fetchDeliveryOrders(){
+  const res = await fetch(api('/delivery-orders'), { headers: authHeaders() });
+  if(!res.ok){ const t = await res.text(); throw new Error(t); }
+  const data = await res.json();
+  return Array.isArray(data)? data : [];
+}
+function renderDelivery(orders){
+  const tbody = document.querySelector('#deliveryTbl tbody');
+  tbody.innerHTML = '';
+  const filt = document.getElementById('d_filter').value;
+  for(const o of orders){
+    if(filt && o.status !== filt) continue;
+    const tr = document.createElement('tr');
+    const addr = (o.customer?.address||'') + ' ' + (o.customer?.addressDetail||'');
+    tr.innerHTML = `<td>${new Date(o.createdAt).toLocaleString()}</td>
+      <td>${o.customer?.name||''}</td>
+      <td>${o.customer?.phone||''}</td>
+      <td style="max-width:280px;word-break:break-all">${addr}</td>
+      <td>${(o.amount||0).toLocaleString()}</td>
+      <td><select data-id="${o.id}" class="d_status">
+            ${['신규','확인중','배달중','완료','취소'].map(s=>`<option ${o.status===s?'selected':''} value="${s}">${s}</option>`).join('')}
+          </select></td>
+      <td>${o.customer?.requestMemo||''}</td>
+      <td><button class="btn btn-outline" data-del="${o.id}">삭제</button></td>`;
+    tbody.appendChild(tr);
+  }
+}
+async function loadDelivery(){
+  try{
+    const orders = await fetchDeliveryOrders();
+    renderDelivery(orders);
+  }catch(e){ alert('배달주문 로드 실패: '+e.message); }
+}
+document.getElementById('d_refresh').onclick = loadDelivery;
+document.getElementById('d_filter').onchange = loadDelivery;
+
+// delegate updates
+document.addEventListener('change', async (e)=>{
+  const sel = e.target.closest('select.d_status');
+  if(sel){
+    const id = sel.getAttribute('data-id');
+    const body = JSON.stringify({ status: sel.value });
+    await fetch(api('/delivery-orders/'+id), { method:'PATCH', headers: authHeaders(), body });
+  }
+});
+document.addEventListener('click', async (e)=>{
+  const btn = e.target.closest('button[data-del]');
+  if(btn){
+    const id = btn.getAttribute('data-del');
+    if(confirm('삭제하시겠습니까?')){
+      await fetch(api('/delivery-orders/'+id), { method:'DELETE', headers: authHeaders() });
+      loadDelivery();
+    }
+  }
+});
+
+</script>
 
 
 <script>(function(){if(window.__NT_CTRL_221B)return;window.__NT_CTRL_221B=true;
@@ -325,6 +462,64 @@ function handleOrder(payload){ try{ if(payload && payload.order) appendOrderRow(
 function handleCall(payload){ const table = payload.table || payload.tableNo || payload.t || ''; const key = 'call:'+String(table||'')+':'+(payload.at||payload.id||payload.ts||''); if(!dedup(key)) return; beep(); notifyBrowser('직원 호출', (table?('테이블 '+table+'에서 호출'): '직원 호출') ); try{ log('[직원 호출] '+ (table?('테이블 '+table):'')); }catch(_){ } }
 function wireSSE(){ if(!window.EventSource){ setConn('down'); return;} setConn('checking'); const base=(window.API||''); const endpoints=['/events/orders','/events','/sse']; let connected=false,tried=0; function tryNext(){ if(connected||tried>=endpoints.length){ if(!connected) setConn('down'); return;} const ep=endpoints[tried++]; try{ const es=new EventSource(base+ep); es.addEventListener('open',()=>{ connected=true; setConn('ok'); log('SSE 연결: '+ep); }); es.addEventListener('error',()=>{ if(!connected){ log('SSE 실패: '+ep); es.close(); tryNext(); } }); ['staff','staff_call','assist','call','notify','message','order'].forEach(function(ev){ es.addEventListener(ev,function(e){ const p=parsePayload(e.data||''); if(p && (String(p.type||'').toLowerCase().includes('staff') || ev==='staff' || ev==='staff_call' || ev==='assist' || ev==='call')) handleCall(p); }); }); es.onmessage=function(e){ const p=parsePayload(e.data||''); if(p && (p.type==='staff_call'||p.kind==='staff_call'||p.event==='staff_call')) handleCall(p); }; }catch(_){ tryNext(); } } tryNext(); }
 document.addEventListener('DOMContentLoaded', function(){ try{ NT.enabled = localStorage.getItem(SKEY)==='1'; }catch(_){ } setPerm(); syncPermBtn(); attachButtons(); wireSSE(); });
-})();</script>
+})();
+// === 배달주문 탭 ===
+async function fetchDeliveryOrders(){
+  const res = await fetch(api('/delivery-orders'), { headers: authHeaders() });
+  if(!res.ok){ const t = await res.text(); throw new Error(t); }
+  const data = await res.json();
+  return Array.isArray(data)? data : [];
+}
+function renderDelivery(orders){
+  const tbody = document.querySelector('#deliveryTbl tbody');
+  tbody.innerHTML = '';
+  const filt = document.getElementById('d_filter').value;
+  for(const o of orders){
+    if(filt && o.status !== filt) continue;
+    const tr = document.createElement('tr');
+    const addr = (o.customer?.address||'') + ' ' + (o.customer?.addressDetail||'');
+    tr.innerHTML = `<td>${new Date(o.createdAt).toLocaleString()}</td>
+      <td>${o.customer?.name||''}</td>
+      <td>${o.customer?.phone||''}</td>
+      <td style="max-width:280px;word-break:break-all">${addr}</td>
+      <td>${(o.amount||0).toLocaleString()}</td>
+      <td><select data-id="${o.id}" class="d_status">
+            ${['신규','확인중','배달중','완료','취소'].map(s=>`<option ${o.status===s?'selected':''} value="${s}">${s}</option>`).join('')}
+          </select></td>
+      <td>${o.customer?.requestMemo||''}</td>
+      <td><button class="btn btn-outline" data-del="${o.id}">삭제</button></td>`;
+    tbody.appendChild(tr);
+  }
+}
+async function loadDelivery(){
+  try{
+    const orders = await fetchDeliveryOrders();
+    renderDelivery(orders);
+  }catch(e){ alert('배달주문 로드 실패: '+e.message); }
+}
+document.getElementById('d_refresh').onclick = loadDelivery;
+document.getElementById('d_filter').onchange = loadDelivery;
+
+// delegate updates
+document.addEventListener('change', async (e)=>{
+  const sel = e.target.closest('select.d_status');
+  if(sel){
+    const id = sel.getAttribute('data-id');
+    const body = JSON.stringify({ status: sel.value });
+    await fetch(api('/delivery-orders/'+id), { method:'PATCH', headers: authHeaders(), body });
+  }
+});
+document.addEventListener('click', async (e)=>{
+  const btn = e.target.closest('button[data-del]');
+  if(btn){
+    const id = btn.getAttribute('data-del');
+    if(confirm('삭제하시겠습니까?')){
+      await fetch(api('/delivery-orders/'+id), { method:'DELETE', headers: authHeaders() });
+      loadDelivery();
+    }
+  }
+});
+
+</script>
 
 </body></html>
