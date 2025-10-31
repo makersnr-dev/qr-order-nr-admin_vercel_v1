@@ -473,60 +473,31 @@ app.post('/confirm', async (req,res)=>{
 });
 
 // ===== Excel export/import =====
-app.get('/export/orders.xlsx', requireAuth, async (req, res)=>{ 
+app.get('/export/orders.xlsx', requireAuth, async (_req,res)=>{ 
   try{ 
     const database = await getDB();
     if (!database) return res.status(500).send('DB not available');
     
-    const type = req.query.type; // 'store' or 'delivery'
-    
-    let query = {};
-    if (type === 'store') {
-      // 배달 주문이 아닌 것만
-      query = { $or: [
-        { deliveryInfo: { $exists: false } },
-        { deliveryInfo: null }
-      ]};
-    } else if (type === 'delivery') {
-      // 배달 주문만
-      query = { deliveryInfo: { $exists: true, $ne: null } };
-    }
-    
     const orders = await database.collection('orders')
-      .find(query)
+      .find({})
       .sort({ createdAt: -1 })
       .toArray();
     
     const wb = new ExcelJS.Workbook(); 
     const ws = wb.addWorksheet('orders'); 
-    
-    if (type === 'delivery') {
-      // 배달 주문용 컬럼
-      ws.columns = [
-        {header:'주문시간',key:'createdAt',width:22},
-        {header:'주문번호',key:'orderId',width:24},
-        {header:'주문자명',key:'deliveryName',width:15},
-        {header:'연락처',key:'deliveryPhone',width:15},
-        {header:'배송지',key:'deliveryAddr',width:35},
-        {header:'예약일시',key:'reserveTime',width:20},
-        {header:'요청사항',key:'note',width:30},
-        {header:'메뉴',key:'items',width:40},
-        {header:'금액',key:'amount',width:12},
-        {header:'상태',key:'status',width:10},
-        {header:'결제키',key:'paymentKey',width:32},
-      ];
-    } else {
-      // 매장 주문용 컬럼
-      ws.columns = [
-        {header:'주문시간',key:'createdAt',width:22},
-        {header:'주문번호',key:'orderId',width:24},
-        {header:'테이블',key:'tableNo',width:10},
-        {header:'메뉴',key:'items',width:40},
-        {header:'금액',key:'amount',width:12},
-        {header:'상태',key:'status',width:10},
-        {header:'결제키',key:'paymentKey',width:32},
-      ];
-    }
+    ws.columns = [
+      {header:'createdAt',key:'createdAt',width:22},
+      {header:'orderId',key:'orderId',width:24},
+      {header:'tableNo',key:'tableNo',width:10},
+      {header:'items',key:'items',width:40},
+      {header:'amount',key:'amount',width:12},
+      {header:'status',key:'status',width:10},
+      {header:'paymentKey',key:'paymentKey',width:32},
+      {header:'deliveryAddr',key:'deliveryAddr',width:30},
+      {header:'deliveryName',key:'deliveryName',width:15},
+      {header:'deliveryPhone',key:'deliveryPhone',width:15},
+      {header:'reserveTime',key:'reserveTime',width:20},
+    ]; 
     
     const toTxt = (items) => (items||[]).map(([id,q])=>`${id} x ${q}`).join(', '); 
     
@@ -541,22 +512,18 @@ app.get('/export/orders.xlsx', requireAuth, async (req, res)=>{
         paymentKey: o.paymentKey
       };
       
-      if (type === 'delivery' && o.deliveryInfo) {
+      if (o.deliveryInfo) {
+        row.deliveryAddr = o.deliveryInfo.addr || '';
         row.deliveryName = o.deliveryInfo.name || '';
         row.deliveryPhone = o.deliveryInfo.phone || '';
-        row.deliveryAddr = o.deliveryInfo.addr || '';
         row.reserveTime = o.deliveryInfo.reserveTime || '';
-        row.note = o.deliveryInfo.note || '';
       }
       
       ws.addRow(row);
     }); 
     
-    const filename = type === 'delivery' ? 'delivery-orders.xlsx' : 
-                     type === 'store' ? 'store-orders.xlsx' : 'orders.xlsx';
-    
     res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); 
-    res.setHeader('Content-Disposition',`attachment; filename="${filename}"`); 
+    res.setHeader('Content-Disposition','attachment; filename="orders.xlsx"'); 
     await wb.xlsx.write(res); 
     res.end(); 
   }catch(e){ 
