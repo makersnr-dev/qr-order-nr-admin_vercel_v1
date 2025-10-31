@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="ko"><head><meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>관리자 콘솔</title>
@@ -27,6 +28,10 @@
 .qr-actions{display:flex;gap:8px;justify-content:center;margin-top:6px}
 .pill.ok{background:#0b2a18;border-color:#1f4e32;color:#b3ffcf}
 .pill.bad{background:#2a160b;border-color:#4e331f;color:#ffd9b3}
+
+.badge{margin-left:8px; padding:1px 7px; border-radius:12px; border:1px solid #3a5a7a; font-size:12px; background:#112233}
+.flash{animation: rowflash 2s ease-out}
+@keyframes rowflash{ 0%{background:#264966} 100%{background:transparent} }
 </style>
 </head><body>
 <div class="wrap">
@@ -38,12 +43,12 @@
 </div>
 </div>
 <div class="tabs">
-<div class="tab active" data-tab="orders">주문목록</div>
+<div class="tab active" data-tab="orders"><span>주문목록</span><span class="badge" id="badge-orders">0</span></div>
 <div class="tab" data-tab="qr">QR 배포</div>
 <div class="tab" data-tab="menu">메뉴 관리</div>
 <div class="tab" data-tab="code">결제 코드</div>
 <div class="tab" data-tab="notify">알림 설정</div>
-<div class="tab" data-tab="delivery">배달/예약</div></div>
+<div class="tab" data-tab="delivery"><span>배달/예약</span><span class="badge" id="badge-delivery">0</span></div></div>
 <div class="card" id="pane-orders">
 <div class="row" style="justify-content:space-between">
 <div><b>주문목록</b></div>
@@ -351,4 +356,141 @@ function handleCall(payload){ const table = payload.table || payload.tableNo || 
 function wireSSE(){ if(!window.EventSource){ setConn('down'); return;} setConn('checking'); const base=(window.API||''); const endpoints=['/events/orders','/events','/sse']; let connected=false,tried=0; function tryNext(){ if(connected||tried>=endpoints.length){ if(!connected) setConn('down'); return;} const ep=endpoints[tried++]; try{ const es=new EventSource(base+ep); es.addEventListener('open',()=>{ connected=true; setConn('ok'); log('SSE 연결: '+ep); }); es.addEventListener('error',()=>{ if(!connected){ log('SSE 실패: '+ep); es.close(); tryNext(); } }); ['staff','staff_call','assist','call','notify','message','order'].forEach(function(ev){ es.addEventListener(ev,function(e){ const p=parsePayload(e.data||''); if(p && (String(p.type||'').toLowerCase().includes('staff') || ev==='staff' || ev==='staff_call' || ev==='assist' || ev==='call')) handleCall(p); }); }); es.onmessage=function(e){ const p=parsePayload(e.data||''); if(p && (p.type==='staff_call'||p.kind==='staff_call'||p.event==='staff_call')) handleCall(p); }; }catch(_){ tryNext(); } } tryNext(); }
 document.addEventListener('DOMContentLoaded', function(){ try{ NT.enabled = localStorage.getItem(SKEY)==='1'; }catch(_){ } setPerm(); syncPermBtn(); attachButtons(); wireSSE(); });
 })();</script>
-</div></body></html>
+</div><audio id="deliveryNotifySound" preload="auto" src="data:audio/mp3;base64,//uQZAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAACcQCA..."></audio>
+<script>
+/* ADMIN_NOTIFY_BLOCK */
+(function(){
+  if (window.__ADMIN_NOTIFY_INIT__) return;
+  window.__ADMIN_NOTIFY_INIT__ = true;
+
+  const NOTI = {
+    enabled: true,
+    sound: true,
+    volume: 1.0,
+    lastPlayAt: 0
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem('adminNotifyPrefs')||'{}');
+    Object.assign(NOTI, saved);
+  } catch(_) {}
+
+  function savePrefs(){
+    try{ localStorage.setItem('adminNotifyPrefs', JSON.stringify({enabled:NOTI.enabled, sound:NOTI.sound, volume:NOTI.volume})); }catch(_){}
+  }
+
+  function badgeEl(tab){ return document.getElementById('badge-'+tab); }
+  function incBadge(tab){
+    const el = badgeEl(tab);
+    if (!el) return;
+    const n = parseInt(el.textContent||'0', 10) + 1;
+    el.textContent = String(n);
+  }
+  function clearBadge(tab){
+    const el = badgeEl(tab);
+    if (el) el.textContent = '0';
+  }
+
+  // Hook into tab switching to clear that tab's badge
+  const _setTabActive = window.setTabActive;
+  window.setTabActive = function(name){
+    if (typeof _setTabActive === 'function') _setTabActive(name);
+    clearBadge(name);
+  };
+
+  async function ensurePermission(){
+    if (!("Notification" in window)) return false;
+    if (Notification.permission === 'granted') return true;
+    if (Notification.permission === 'denied') return false;
+    try {
+      const perm = await Notification.requestPermission();
+      return perm === 'granted';
+    } catch(_) { return false; }
+  }
+
+  function playSound(){
+    if (!NOTI.sound) return;
+    const now = Date.now();
+    if (now - NOTI.lastPlayAt < 1000) return; // debounce 1s
+    NOTI.lastPlayAt = now;
+    const a = document.getElementById('deliveryNotifySound');
+    if (!a) return;
+    try {
+      a.volume = Math.max(0, Math.min(1, NOTI.volume||1));
+      a.currentTime = 0;
+      a.play().catch(()=>{});
+    } catch(_) {}
+  }
+
+  function focusAndSwitch(tab){
+    try{ window.focus(); }catch(_){}
+    try{ window.setTabActive(tab); }catch(_){}
+  }
+
+  function desktopNotify(title, body, tab){
+    if (!NOTI.enabled || !("Notification" in window)) return;
+    if (document.visibilityState === 'visible' && document.hasFocus()) {
+      // Optional: show only badge/sound when focused
+    }
+    ensurePermission().then(ok => {
+      if (!ok) return;
+      try {
+        const n = new Notification(title, { body: body });
+        n.onclick = function(){ try{ n.close(); }catch(_){ } focusAndSwitch(tab); };
+        setTimeout(()=>{ try{ n.close(); }catch(_){ } }, 5000);
+      } catch(_){}
+    });
+  }
+
+  // Helper to build short summary
+  function shortSum(o){
+    const amount = (o && (o.amount||0)).toLocaleString('ko-KR');
+    const name = (o && o.deliveryInfo && o.deliveryInfo.name) ? o.deliveryInfo.name : (o && o.tableNo ? o.tableNo : '');
+    return `${amount}원 · ${name}`;
+  }
+
+  // Wrap SSE handler: after existing append calls, trigger notify without colliding with other alerts
+  function notifyOnNewOrder(o){
+    if (!o || !o.id) return;
+    const isDelivery = (o.orderType === 'delivery') || (o.tableNo === '배달');
+    const tab = isDelivery ? 'delivery' : 'orders';
+    // badges
+    incBadge(tab);
+    // row highlight: mark first row of that table
+    try {
+      const tb = document.querySelector(tab === 'delivery' ? '#deliveryTbl tbody' : '#ordersTbl tbody');
+      if (tb && tb.firstChild) {
+        tb.firstChild.classList.add('flash');
+        setTimeout(()=> tb.firstChild && tb.firstChild.classList.remove('flash'), 2000);
+      }
+    } catch(_){}
+    // sound + desktop
+    playSound();
+    desktopNotify('새 주문 도착', (isDelivery ? '배달/예약 · ' : '주문 · ') + shortSum(o), tab);
+  }
+
+  // Patch SSE handler safely
+  try {
+    const origOnMessage = window.__ADMIN_SSE_ONMESSAGE__;
+    if (!origOnMessage) {
+      // Monkey-patch EventSource usage by wrapping append calls
+      const oldAppendOrder = window.appendOrderRow;
+      const oldAppendDelivery = window.appendDeliveryRow;
+      window.appendOrderRow = function(o){ try{ oldAppendOrder && oldAppendOrder(o); } finally{ notifyOnNewOrder(o); } };
+      window.appendDeliveryRow = function(o){ try{ oldAppendDelivery && oldAppendDelivery(o); } finally{ /* already notified via appendOrderRow */ } };
+      // Mark so we don't double-wrap
+      window.__ADMIN_SSE_ONMESSAGE__ = true;
+    }
+  } catch(_){}
+
+  // Expose a minimal UI toggler (optional)
+  window.adminNotify = {
+    enable(v){ NOTI.enabled = !!v; savePrefs(); },
+    sound(v){ NOTI.sound = !!v; savePrefs(); },
+    volume(v){ NOTI.volume = Math.max(0, Math.min(1, Number(v)||1)); savePrefs(); },
+    requestPermission: ensurePermission,
+    clearBadge
+  };
+})();
+</script>
+
+</body></html>
