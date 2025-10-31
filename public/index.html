@@ -50,6 +50,30 @@
 <div class="tab" data-tab="code">결제 코드</div>
 <div class="tab" data-tab="notify">알림 설정</div>
 <div class="tab" data-tab="delivery"><span>배달/예약</span><span class="badge" id="badge-delivery">0</span></div></div>
+
+<div class="card hidden" id="pane-bank">
+  <h3>입금 계좌 관리</h3>
+  <div class="row" style="gap:12px;align-items:flex-end;flex-wrap:wrap">
+    <div style="display:flex;gap:8px;align-items:center">
+      <label style="min-width:60px">은행</label>
+      <input id="bankName" placeholder="은행명" style="min-width:200px"/>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <label style="min-width:60px">계좌번호</label>
+      <input id="bankAccount" placeholder="숫자 및 - 포함" style="min-width:260px"/>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <label style="min-width:60px">예금주</label>
+      <input id="bankHolder" placeholder="예금주" style="min-width:200px"/>
+    </div>
+    <button id="bankSaveBtn" class="btn">저장</button>
+    <span id="bankMsg" class="muted" style="margin-left:6px"></span>
+  </div>
+  <div class="row small" style="margin-top:10px">
+    <span>현재 저장값:</span>
+    <span id="bankDisplay" style="margin-left:8px"></span>
+  </div>
+</div>
 <div class="card" id="pane-orders">
 <div class="row" style="justify-content:space-between">
 <div><b>매장 주문</b></div>
@@ -142,12 +166,22 @@ async function fetch401(input, init){
 
 function api(p){ return API + p; }
 
+function updateBankDisplay(d){
+  try{
+    var out = '';
+    if(d && (d.bank||d.account||d.holder)){
+      out = [d.bank||'', d.account||'', d.holder||''].filter(Boolean).join(' / ');
+    }
+    var tgt = document.getElementById('bankDisplay');
+    if(tgt) tgt.textContent = out || '(저장된 정보 없음)';
+  }catch(_){} 
+}
 async function loadBankInfo(){
   try{
     const r = await fetch401(api('/bank-info'), { headers: authHeaders() });
     if(!r.ok) return;
     const j = await r.json();
-    const d = (j && j.data) || {};
+    const d = (j && j.data) || {}; updateBankDisplay(d);
     const b = document.getElementById('bankName'); if(b) b.value = d.bank || '';
     const a = document.getElementById('bankAccount'); if(a) a.value = d.account || '';
     const h = document.getElementById('bankHolder'); if(h) h.value = d.holder || '';
@@ -160,7 +194,7 @@ async function saveBankInfo(){
   const holder = (document.getElementById('bankHolder')||{}).value || '';
   try{
     const r = await fetch401(api('/bank-info'), { method:'POST', headers: authHeaders(), body: JSON.stringify({ bank, account, holder }) });
-    if(r.ok){ showBankMsg('저장되었습니다.'); } else { showBankMsg('저장 실패'); }
+    if(r.ok){ showBankMsg('저장되었습니다.'); try{ await loadBankInfo(); }catch(_){} } else { showBankMsg('저장 실패'); }
   }catch(e){ showBankMsg('오류: '+(e?.message||e)); }
 }
 
@@ -181,12 +215,13 @@ function setTabActive(name){
 document.querySelectorAll('.tab').forEach(t=> t.onclick=()=> setTabActive(t.dataset.tab));
 
 document.getElementById('logoutBtn').onclick = ()=>{ localStorage.removeItem('adminToken'); TOKEN=''; location.href='/login'; };
+(function(){ var b=document.getElementById('bankSaveBtn'); if(b) b.onclick = saveBankInfo; })();
 
 async function init(){
   const r=await fetch('/admin-config'); const j=await r.json(); API=j.apiBase; ORDER_BASE=j.orderBase;
   if(!TOKEN){ location.href='/login'; return; }
   // After login only: load data. Failures are shown minimally or silently.
-  try{ await Promise.all([loadOrders(), loadMenu(), loadDailyCode()]); }catch(e){ console.warn('initial load error', e); }
+  try{ await Promise.all([loadOrders(), loadMenu(), loadDailyCode(), loadBankInfo()]); }catch(e){ console.warn('initial load error', e); }
 }
 
 // Orders
