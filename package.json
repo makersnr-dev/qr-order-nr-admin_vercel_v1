@@ -1,24 +1,20 @@
 {
-  "name": "qrorder-api-full",
-  "version": "1.6.0",
+  "name": "qr-order-nr-integrated",
+  "private": true,
+  "version": "1.0.0",
   "type": "module",
-  "main": "server.js",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
-    "start": "node server.js"
+    "start": "node api/index.js"
   },
   "dependencies": {
-    "dotenv": "^16.4.5",
-    "exceljs": "^4.4.0",
+    "body-parser": "^1.20.2",
+    "cookie-parser": "^1.4.6",
     "express": "^4.19.2",
-    "mongodb": "^6.3.0",
-    "multer": "^2.0.0"
-  },
-  "overrides": {
-    "glob": "^10.3.12",
-    "rimraf": "^5.0.7",
-    "fstream": "npm:tar@^6.2.1"
-  },
-  "engines": {
-    "node": ">=18"
+    "iron-session": "^8.0.4",
+    "multer": "^1.4.5-lts.1",
+    "xlsx": "^0.18.5"
   }
 }
