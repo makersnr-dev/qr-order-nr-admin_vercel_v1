@@ -2,8 +2,12 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/(.*)",
-      "destination": "/api"
+      "source": "/admin-config",
+      "destination": "/api/admin-config"
+    },
+    {
+      "source": "/events/orders",
+      "destination": "/api/events-orders"
     }
   ]
 }
